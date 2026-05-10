@@ -64,6 +64,7 @@ typedef struct {
 
 typedef struct {
 	char* path;
+	char* ext;
 	int lang_idx;
 	Counts counts;
 } FileResult;
@@ -98,6 +99,7 @@ static int g_files_capacity = 0;
 static bool g_recurse = false;
 static bool g_show_files = false;
 static bool g_list_unknown = false;
+static bool g_verbose = false;
 static char* g_filter = NULL;
 
 static long g_skipped_compressed = 0;
@@ -601,6 +603,7 @@ static void process_path(const char* path)
 	}
 	FileResult* fr = &g_files[g_n_files++];
 	fr->path = strdup(path);
+	fr->ext = ext ? strdup(ext) : NULL;
 	fr->lang_idx = li;
 	fr->counts = count_file(path, li);
 }
@@ -642,16 +645,33 @@ static void print_report(void)
 
 	if (g_show_files) {
 		printf("\n %sPer-File Results%s \n", ANSI_CYAN, ANSI_RESET);
-		printf("%-55s %9s %9s %9s %9s\n", "File", "Code", "Comment", "Blank",
-		 "Total");
-		printf("---------------------------------------------------------------"
-		       "---------------------------\n");
-		for (int i = 0; i < g_n_files; i++) {
-			FileResult* fr = &g_files[i];
-			long total =
-			 fr->counts.code + fr->counts.comment + fr->counts.blank;
-			printf("%-55s %9ld %9ld %9ld %9ld\n", fr->path, fr->counts.code,
-			 fr->counts.comment, fr->counts.blank, total);
+		if (g_verbose) {
+			printf("%-45s %-10s %9s %9s %9s %9s\n", "File", "Ext", "Code",
+			 "Comment", "Blank", "Total");
+			printf("-----------------------------------------------------------"
+			       "----"
+			       "-------------------------------------------\n");
+			for (int i = 0; i < g_n_files; i++) {
+				FileResult* fr = &g_files[i];
+				long total =
+				 fr->counts.code + fr->counts.comment + fr->counts.blank;
+				printf("%-45s %-10s %9ld %9ld %9ld %9ld\n", fr->path,
+				 fr->ext ? fr->ext : "", fr->counts.code, fr->counts.comment,
+				 fr->counts.blank, total);
+			}
+		} else {
+			printf("%-55s %9s %9s %9s %9s\n", "File", "Code", "Comment",
+			 "Blank", "Total");
+			printf("-----------------------------------------------------------"
+			       "----"
+			       "---------------------------\n");
+			for (int i = 0; i < g_n_files; i++) {
+				FileResult* fr = &g_files[i];
+				long total =
+				 fr->counts.code + fr->counts.comment + fr->counts.blank;
+				printf("%-55s %9ld %9ld %9ld %9ld\n", fr->path, fr->counts.code,
+				 fr->counts.comment, fr->counts.blank, total);
+			}
 		}
 		printf("\n");
 	}
@@ -750,6 +770,14 @@ static void print_report(void)
 		 ANSI_GRAY, b_pct, ANSI_RESET);
 	}
 	putchar('\n');
+}
+
+static void cb_verbose(int argc, char** argv, void* user_data)
+{
+	(void) argc;
+	(void) argv;
+	(void) user_data;
+	g_verbose = true;
 }
 
 static void cb_recurse(int argc, char** argv, void* user_data)
@@ -868,13 +896,44 @@ int main(int argc, char** argv)
 	 (CliArgument) {
 	     "--list-unknown", NULL, "List unknown files", cb_list_unknown, NULL});
 	cli_add_argument(&parser,
+	 (CliArgument) {
+	     "--verbose", NULL, "Show file extensions", cb_verbose, NULL});
+	cli_add_argument(&parser,
 	 (CliArgument) {"--filter", NULL, "Filter output: code, comment, or blank",
 	     cb_filter, NULL});
 
 	if (argc < 2) {
 		process_path(".");
 	} else {
-		cli_parse(&parser, argc, argv);
+		/* Parse flags */
+		for (int i = 1; i < argc; i++) {
+			if (argv[i][0] == '-') {
+				for (size_t j = 0; j < parser.arg_count; j++) {
+					if (strcmp(argv[i], parser.registered_args[j].name) == 0 ||
+					 (parser.registered_args[j].shorthand &&
+					  strcmp(argv[i], parser.registered_args[j].shorthand) ==
+					   0)) {
+						int n_args = 0;
+						if (strcmp(argv[i], "-l") == 0 ||
+						 strcmp(argv[i], "--lang-file") == 0 ||
+						 strcmp(argv[i], "-a") == 0 ||
+						 strcmp(argv[i], "--append") == 0 ||
+						 strcmp(argv[i], "--filter") == 0) {
+							n_args = 1;
+						}
+						parser.registered_args[j].callback(n_args,
+						 (n_args > 0) ? &argv[i + 1] : NULL,
+						 parser.registered_args[j].user_data);
+						if (n_args > 0) {
+							i++;
+						}
+						break;
+					}
+				}
+			}
+		}
+
+		/* Process paths */
 		bool any_file = false;
 		for (int i = 1; i < argc; i++) {
 			if (argv[i][0] == '-') {
