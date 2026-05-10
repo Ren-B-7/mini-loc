@@ -10,8 +10,7 @@
       ".jpg",
       ".webm",
       ".webp",
-      ".zst",
-      ".wasm"
+      ".zst"
     ]
   },
   {
@@ -350,6 +349,13 @@
     "extensions": ["asm", "s", "S"],
     "line_comments": [";", "#"],
     "block_comments": [],
+    "data_only": false
+  },
+  {
+    "name": "Web Assembly Binary",
+    "extensions": ["wat"],
+    "line_comments": [],
+    "block_comments": [[]],
     "data_only": false
   },
   {

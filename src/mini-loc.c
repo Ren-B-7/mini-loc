@@ -299,33 +299,6 @@ static void load_languages(const unsigned char* data, size_t len, bool append)
 									if (p && *p == ']') {
 										p++;
 									}
-								} else {
-									/*
-									 * BUG FIX: some entries (e.g. Web Assembly)
-									 * use a flat array of strings instead of an
-									 * array of arrays. The original code had no
-									 * else-branch here so p never advanced past
-									 * the leading '"', causing an infinite
-									 * loop.
-									 *
-									 * Treat a flat array as a single start/end
-									 * pair: read the first string as start and
-									 * the second (after the comma) as end.
-									 */
-									p = json_read_string(p,
-									 temp.block_start[temp.n_block_comments],
-									 MAX_COMMENT_LEN);
-									p = json_skip_whitespace(p);
-									if (p && *p == ',') {
-										p++;
-									}
-									p = json_skip_whitespace(p);
-									if (p && *p == '"') {
-										p = json_read_string(p,
-										 temp
-										  .block_end[temp.n_block_comments++],
-										 MAX_COMMENT_LEN);
-									}
 								}
 								p = json_skip_whitespace(p);
 								if (p && *p == ',') {
