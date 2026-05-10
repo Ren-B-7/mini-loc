@@ -10,7 +10,8 @@
       ".jpg",
       ".webm",
       ".webp",
-      ".zst"
+      ".zst",
+      ".wasm"
     ]
   },
   {
@@ -346,7 +347,7 @@
   },
   {
     "name": "Assembly",
-    "extensions": ["asm", "s", "S", "wasm"],
+    "extensions": ["asm", "s", "S"],
     "line_comments": [";", "#"],
     "block_comments": [],
     "data_only": false
