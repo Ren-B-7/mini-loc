@@ -3,7 +3,7 @@
  * Counts code, comment, and blank lines per file/language.
  * Language definitions loaded from languages.json (no external deps).
  */
-#define _XOPEN_SOURCE 700
+#define OFFSET 700
 #include <ctype.h>
 #include <dirent.h>
 #include <stdbool.h>
@@ -42,18 +42,18 @@
 #define ANSI_RESET "\033[0m"
 
 typedef struct {
-	char name[MAX_LANG_NAME_LEN];
-	char extensions[MAX_EXTENSIONS][MAX_EXT_LEN];
-	int n_extensions;
-	char line_comments[MAX_LINE_COMMENTS][MAX_COMMENT_LEN];
 	size_t line_comment_lens[MAX_LINE_COMMENTS];
-	int n_line_comments;
-	char block_start[MAX_BLOCK_COMMENTS][MAX_COMMENT_LEN];
 	size_t block_start_lens[MAX_BLOCK_COMMENTS];
-	char block_end[MAX_BLOCK_COMMENTS][MAX_COMMENT_LEN];
 	size_t block_end_lens[MAX_BLOCK_COMMENTS];
+	int n_extensions;
+	int n_line_comments;
 	int n_block_comments;
 	bool data_only;
+	char name[MAX_LANG_NAME_LEN];
+	char line_comments[MAX_LINE_COMMENTS][MAX_COMMENT_LEN];
+	char block_start[MAX_BLOCK_COMMENTS][MAX_COMMENT_LEN];
+	char block_end[MAX_BLOCK_COMMENTS][MAX_COMMENT_LEN];
+	char extensions[MAX_EXTENSIONS][MAX_EXT_LEN];
 } Language;
 
 typedef struct {
@@ -406,18 +406,23 @@ static void build_lookup_table(void)
 	 ext_entry_cmp);
 }
 
-static int find_language(const char* path, const char* ext)
+typedef struct {
+	const char* path;
+	const char* ext;
+} LangLookupParams;
+
+static int find_language(LangLookupParams params)
 {
 	ExtEntry key;
 	memset(&key, 0, sizeof(key));
 
-	if (!ext) {
+	if (!params.ext) {
 		/* No extension: match against bare filenames (e.g. Dockerfile). */
-		const char* base = strrchr(path, '/');
-		base = base ? base + 1 : path;
+		const char* base = strrchr(params.path, '/');
+		base = base ? base + 1 : params.path;
 		strncpy(key.ext, base, MAX_EXT_LEN - 1);
 	} else {
-		strncpy(key.ext, ext + 1, MAX_EXT_LEN - 1);
+		strncpy(key.ext, params.ext + 1, MAX_EXT_LEN - 1);
 	}
 
 	const ExtEntry* found = (const ExtEntry*) bsearch(&key, g_ext_table,
@@ -582,15 +587,15 @@ static void process_path(const char* path)
 	}
 	if (g_n_files >= g_files_capacity) {
 		g_files_capacity = g_files_capacity == 0 ? 1024 : g_files_capacity * 2;
-		FileResult* temp =
-		 (FileResult*) realloc(g_files, sizeof(FileResult) * (size_t) g_files_capacity);
+		FileResult* temp = (FileResult*) realloc(g_files,
+		 sizeof(FileResult) * (size_t) g_files_capacity);
 		if (!temp) {
 			return;
 		}
 		g_files = temp;
 	}
 
-	int li = find_language(path, ext);
+	int li = find_language((LangLookupParams) {path, ext});
 	if (li == -1 && !g_list_unknown) {
 		return;
 	}
