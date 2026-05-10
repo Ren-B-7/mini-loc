@@ -46,9 +46,12 @@ typedef struct {
 	char extensions[MAX_EXTENSIONS][MAX_EXT_LEN];
 	int n_extensions;
 	char line_comments[MAX_LINE_COMMENTS][MAX_COMMENT_LEN];
+	size_t line_comment_lens[MAX_LINE_COMMENTS];
 	int n_line_comments;
 	char block_start[MAX_BLOCK_COMMENTS][MAX_COMMENT_LEN];
+	size_t block_start_lens[MAX_BLOCK_COMMENTS];
 	char block_end[MAX_BLOCK_COMMENTS][MAX_COMMENT_LEN];
+	size_t block_end_lens[MAX_BLOCK_COMMENTS];
 	int n_block_comments;
 	bool data_only;
 } Language;
@@ -60,7 +63,7 @@ typedef struct {
 } Counts;
 
 typedef struct {
-	char path[PATH_BUF];
+	char* path;
 	int lang_idx;
 	Counts counts;
 } FileResult;
@@ -88,8 +91,9 @@ static int g_n_ext_entries = 0;
 static SimpleSet g_ignored_set;
 static bool g_ignored_set_ready = false;
 
-static FileResult g_files[MAX_FILES];
+static FileResult* g_files = NULL;
 static int g_n_files = 0;
+static int g_files_capacity = 0;
 
 static bool g_recurse = false;
 static bool g_show_files = false;
@@ -355,6 +359,13 @@ static void load_languages(const unsigned char* data, size_t len, bool append)
 				p++;
 			}
 			if (!is_config) {
+				for (int i = 0; i < temp.n_line_comments; i++) {
+					temp.line_comment_lens[i] = strlen(temp.line_comments[i]);
+				}
+				for (int i = 0; i < temp.n_block_comments; i++) {
+					temp.block_start_lens[i] = strlen(temp.block_start[i]);
+					temp.block_end_lens[i] = strlen(temp.block_end[i]);
+				}
 				g_langs[g_n_langs++] = temp;
 			}
 		}
@@ -395,19 +406,18 @@ static void build_lookup_table(void)
 	 ext_entry_cmp);
 }
 
-static int find_language(const char* path)
+static int find_language(const char* path, const char* ext)
 {
 	ExtEntry key;
 	memset(&key, 0, sizeof(key));
 
-	const char* dot = strrchr(path, '.');
-	if (!dot) {
+	if (!ext) {
 		/* No extension: match against bare filenames (e.g. Dockerfile). */
 		const char* base = strrchr(path, '/');
 		base = base ? base + 1 : path;
 		strncpy(key.ext, base, MAX_EXT_LEN - 1);
 	} else {
-		strncpy(key.ext, dot + 1, MAX_EXT_LEN - 1);
+		strncpy(key.ext, ext + 1, MAX_EXT_LEN - 1);
 	}
 
 	const ExtEntry* found = (const ExtEntry*) bsearch(&key, g_ext_table,
@@ -453,24 +463,24 @@ static Counts count_file(const char* path, int lang_idx)
 		bool is_comment = false;
 		if (in_block) {
 			is_comment = true;
-			char* end = strstr(p, l->block_end[block_idx]);
-			if (end) {
+			if (strstr(p, l->block_end[block_idx])) {
 				in_block = false;
 			}
 		} else {
 			for (int i = 0; i < l->n_line_comments; i++) {
-				if (strncmp(p, l->line_comments[i],
-				     strlen(l->line_comments[i])) == 0) {
+				if (strncmp(p, l->line_comments[i], l->line_comment_lens[i]) ==
+				 0) {
 					is_comment = true;
 					break;
 				}
 			}
 			if (!is_comment) {
 				for (int i = 0; i < l->n_block_comments; i++) {
-					char* start = strstr(p, l->block_start[i]);
-					if (start == p) {
+					if (strncmp(p, l->block_start[i], l->block_start_lens[i]) ==
+					 0) {
 						is_comment = true;
-						if (!strstr(p, l->block_end[i])) {
+						if (!strstr(p + l->block_start_lens[i],
+						     l->block_end[i])) {
 							in_block = true;
 							block_idx = i;
 						}
@@ -491,9 +501,8 @@ static Counts count_file(const char* path, int lang_idx)
 
 static void walk_dir(const char* path);
 
-static int is_compressed(const char* path)
+static int is_compressed(const char* ext)
 {
-	const char* ext = strrchr(path, '.');
 	if (!ext) {
 		return 0;
 	}
@@ -502,9 +511,8 @@ static int is_compressed(const char* path)
 	 strcmp(ext, ".snapshots") == 0);
 }
 
-static int is_media(const char* path)
+static int is_media(const char* ext)
 {
-	const char* ext = strrchr(path, '.');
 	if (!ext) {
 		return 0;
 	}
@@ -512,9 +520,8 @@ static int is_media(const char* path)
 	 strcmp(ext, ".webm") == 0);
 }
 
-static int is_special(const char* path)
+static int is_special(const char* ext)
 {
-	const char* ext = strrchr(path, '.');
 	if (!ext) {
 		return 0;
 	}
@@ -522,9 +529,8 @@ static int is_special(const char* path)
 	 strcmp(ext, ".env") == 0);
 }
 
-static bool is_ignored_extension(const char* path)
+static bool is_ignored_extension(const char* ext)
 {
-	const char* ext = strrchr(path, '.');
 	if (!ext) {
 		return false;
 	}
@@ -556,30 +562,40 @@ static void process_path(const char* path)
 		}
 		return;
 	}
-	if (!S_ISREG(st.st_mode) || is_ignored_extension(path)) {
+
+	const char* ext = strrchr(path, '.');
+
+	if (!S_ISREG(st.st_mode) || is_ignored_extension(ext)) {
 		return;
 	}
-	if (is_compressed(path)) {
+	if (is_compressed(ext)) {
 		g_skipped_compressed++;
 		return;
 	}
-	if (is_media(path)) {
+	if (is_media(ext)) {
 		g_skipped_media++;
 		return;
 	}
-	if (is_special(path)) {
+	if (is_special(ext)) {
 		g_special_files++;
 		return;
 	}
-	if (g_n_files >= MAX_FILES) {
-		return;
+	if (g_n_files >= g_files_capacity) {
+		g_files_capacity = g_files_capacity == 0 ? 1024 : g_files_capacity * 2;
+		FileResult* temp =
+		 (FileResult*) realloc(g_files, sizeof(FileResult) * (size_t) g_files_capacity);
+		if (!temp) {
+			return;
+		}
+		g_files = temp;
 	}
-	int li = find_language(path);
+
+	int li = find_language(path, ext);
 	if (li == -1 && !g_list_unknown) {
 		return;
 	}
 	FileResult* fr = &g_files[g_n_files++];
-	strncpy(fr->path, path, PATH_BUF - 1);
+	fr->path = strdup(path);
 	fr->lang_idx = li;
 	fr->counts = count_file(path, li);
 }
@@ -643,21 +659,19 @@ static void print_report(void)
 
 	LangSum sums[MAX_LANGS + 1];
 	int n_sums = 0;
+	int lang_to_sum_idx[MAX_LANGS + 1];
+	memset(lang_to_sum_idx, -1, sizeof(lang_to_sum_idx));
 
 	for (int i = 0; i < g_n_files; i++) {
 		int li = g_files[i].lang_idx;
-		int found = -1;
-		for (int j = 0; j < n_sums; j++) {
-			if (sums[j].lang_idx == li) {
-				found = j;
-				break;
-			}
-		}
+		int map_idx = li + 1; /* Map -1 to 0, 0 to 1, etc. */
+		int found = lang_to_sum_idx[map_idx];
 		if (found == -1) {
 			found = n_sums++;
 			sums[found].lang_idx = li;
 			sums[found].files = 0;
 			sums[found].counts = (Counts) {0, 0, 0};
+			lang_to_sum_idx[map_idx] = found;
 		}
 		sums[found].files++;
 		sums[found].counts.code += g_files[i].counts.code;
