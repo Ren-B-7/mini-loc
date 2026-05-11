@@ -7,17 +7,22 @@
 #include <assert.h>
 #include <ctype.h>
 #include <dirent.h>
+#include <pthread.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h> /* strcasecmp */
 #include <sys/stat.h>
+#include <unistd.h>  /* sysconf */
 
 #include "include/languages_data.h"
 #include "include/minicli.h"
 #include "include/set.h"
 
+/* -------------------------------------------------------------------------
+ * Compile-time constants
+ * ------------------------------------------------------------------------- */
 #define MAX_LANGS 512
 #define MAX_EXT_LEN 32
 #define MAX_COMMENT_LEN 16
@@ -25,16 +30,21 @@
 #define MAX_BLOCK_COMMENTS 8
 #define MAX_LANG_NAME_LEN 32
 #define MAX_EXTENSIONS 32
-#define MAX_FILES 65536
 #define PATH_BUF 4096
-#define LINE_BUF 65536
 #define MAX_FILE_SIZE (1024L * 1024L)
 
+/* Work-queue / thread-pool tuning */
+#define QUEUE_INIT_CAP 4096 /* initial work-queue slot count (power of 2) */
+#define MAX_THREADS 64      /* hard upper bound on pool size              */
+#define LOCAL_INIT_CAP 1024 /* initial per-thread FileResult capacity     */
+
+/* Report column widths */
 #define COL_LANG 20
 #define COL_FILES 6
 #define COL_NUM 9
 #define COL_PCT 6
 
+/* ANSI colours */
 #define ANSI_BOLD "\033[1m"
 #define ANSI_CYAN "\033[36m"
 #define ANSI_GREEN "\033[32m"
@@ -42,6 +52,9 @@
 #define ANSI_GRAY "\033[90m"
 #define ANSI_RESET "\033[0m"
 
+/* -------------------------------------------------------------------------
+ * Data types
+ * ------------------------------------------------------------------------- */
 typedef struct {
 	size_t line_comment_lens[MAX_LINE_COMMENTS];
 	size_t block_start_lens[MAX_BLOCK_COMMENTS];
@@ -70,39 +83,88 @@ typedef struct {
 	Counts counts;
 } FileResult;
 
-/*
- * ExtEntry: maps a file extension (or bare filename) to a language index.
- * The table is sorted and searched with bsearch for O(log n) lookup.
- */
+/* Extension → language index: sorted, searched with bsearch O(log n). */
 typedef struct {
 	char ext[MAX_EXT_LEN];
 	int lang_idx;
 } ExtEntry;
 
+/* =========================================================================
+ * Read-only globals — written once at startup, never mutated afterwards.
+ * Workers can read these without any locking.
+ * ========================================================================= */
 static Language g_langs[MAX_LANGS];
 static int g_n_langs = 0;
 
-/* Sorted extension->language table, built once after load_languages. */
 static ExtEntry g_ext_table[MAX_LANGS * MAX_EXTENSIONS];
 static int g_n_ext_entries = 0;
 
-/*
- * g_ignored_set: O(1) hash-set for ignored extensions (e.g. ".gz", ".png").
- * Replaces the old linear-scan over g_ignored_exts[].
- */
 static SimpleSet g_ignored_set;
 static bool g_ignored_set_ready = false;
 
-static FileResult* g_files = NULL;
-static int g_n_files = 0;
-static int g_files_capacity = 0;
-
+/* =========================================================================
+ * CLI option flags — set once during argument parsing, read-only afterwards.
+ * ========================================================================= */
 static bool g_recurse = false;
 static bool g_show_files = false;
 static bool g_list_unknown = false;
 static bool g_verbose = false;
 static char* g_filter = NULL;
 
+/* =========================================================================
+ * Work queue
+ *
+ * A circular buffer of heap-allocated path strings.  The producer (main /
+ * walk_dir) pushes; workers pop.  Both ends are protected by a single
+ * mutex + condvar pair — contention is low because each work item
+ * represents a whole file (the heavy work happens after the pop).
+ * ========================================================================= */
+typedef struct {
+	char** paths;  /* circular buffer of strdup'd paths */
+	size_t cap;    /* allocated slots (always power of 2) */
+	size_t head;   /* next slot to pop  (consumer index) */
+	size_t tail;   /* next slot to push (producer index) */
+	size_t count;  /* items currently in the queue */
+	bool finished; /* set by producer when walking is done */
+	pthread_mutex_t lock;
+	pthread_cond_t not_empty;
+	pthread_cond_t not_full;
+} WorkQueue;
+
+/* =========================================================================
+ * Per-thread state
+ * ========================================================================= */
+typedef struct {
+	WorkQueue* queue;  /* shared work queue */
+	FileResult* files; /* private result array */
+	int n_files;       /* used entries */
+	int capacity;      /* allocated entries */
+} ThreadState;
+
+/* =========================================================================
+ * Forward declarations
+ * ========================================================================= */
+static const char* json_skip_whitespace(const char* p);
+static const char* json_read_string(const char* p, char* buf, size_t len);
+static const char* json_skip_value(const char* p);
+static void load_languages(const unsigned char* data, size_t len, bool append);
+static void build_lookup_table(void);
+static int find_language(const char* path, const char* ext);
+static bool is_ignored_extension(const char* ext);
+static Counts count_file(const char* path, int lang_idx);
+static void process_file_local(ThreadState* ts, const char* path);
+static void walk_dir(const char* path, WorkQueue* queue);
+static void process_path_producer(const char* path, WorkQueue* queue);
+static int wq_init(WorkQueue* q, size_t initial_cap);
+static void wq_push(WorkQueue* q, char* path);
+static char* wq_pop(WorkQueue* q); /* blocks; returns NULL when done */
+static void wq_finish(WorkQueue* q);
+static void wq_destroy(WorkQueue* q);
+static void* worker_thread(void* arg);
+
+/* =========================================================================
+ * JSON mini-parser (unchanged from original)
+ * ========================================================================= */
 static const char* json_skip_whitespace(const char* p)
 {
 	if (!p) {
@@ -150,7 +212,8 @@ static const char* json_skip_value(const char* p)
 			p++;
 		}
 	} else if (*p == '[' || *p == '{') {
-		char open = *p, close = (open == '[') ? ']' : '}';
+		char open = *p;
+		char close = (open == '[') ? ']' : '}';
 		int depth = 1;
 		p++;
 		while (*p && depth > 0) {
@@ -169,15 +232,14 @@ static const char* json_skip_value(const char* p)
 	return p;
 }
 
-static void load_languages(const unsigned char* data, size_t len, bool append);
-static void build_lookup_table(void);
-
+/* =========================================================================
+ * Language loading & lookup (unchanged from original)
+ * ========================================================================= */
 static void load_languages(const unsigned char* data, size_t len, bool append)
 {
 	(void) len;
 	if (!append) {
 		g_n_langs = 0;
-		/* Reinitialise the ignored-extension set for a fresh load. */
 		if (g_ignored_set_ready) {
 			set_destroy(&g_ignored_set);
 			g_ignored_set_ready = false;
@@ -225,7 +287,6 @@ static void load_languages(const unsigned char* data, size_t len, bool append)
 						while (p && *p && *p != ']') {
 							char ign_ext[16];
 							p = json_read_string(p, ign_ext, sizeof(ign_ext));
-							/* Store in hash set for O(1) lookup later. */
 							set_add_str(&g_ignored_set, ign_ext);
 							p = json_skip_whitespace(p);
 							if (p && *p == ',') {
@@ -277,10 +338,6 @@ static void load_languages(const unsigned char* data, size_t len, bool append)
 							p++;
 							while (p && *p && *p != ']') {
 								if (*p == '[') {
-									/*
-									 * Normal case: each block comment is a
-									 * two-element array ["start", "end"].
-									 */
 									p++;
 									p = json_read_string(p,
 									 temp.block_start[temp.n_block_comments],
@@ -348,13 +405,6 @@ static void load_languages(const unsigned char* data, size_t len, bool append)
 	}
 }
 
-/* -------------------------------------------------------------------------
- * build_lookup_table
- *
- * Called once after every load_languages() invocation.  Populates a sorted
- * ExtEntry array so find_language() can use bsearch (O(log n)) instead of
- * the original O(langs * extensions) double linear scan.
- * ------------------------------------------------------------------------- */
 static int ext_entry_cmp(const void* a, const void* b)
 {
 	return strcasecmp(((const ExtEntry*) a)->ext, ((const ExtEntry*) b)->ext);
@@ -378,34 +428,21 @@ static void build_lookup_table(void)
 	 ext_entry_cmp);
 }
 
-typedef struct {
-	const char* path;
-	const char* ext;
-} LangLookupParams;
-
-/*
- * ext_cmp_str: comparator for bsearch() that takes a raw C string as the key
- * instead of a full ExtEntry.  This lets find_language() pass the extension
- * pointer directly, avoiding the memset + strncpy into a temporary ExtEntry
- * that the old implementation required.
- */
 static int ext_cmp_str(const void* key, const void* entry)
 {
 	return strcasecmp((const char*) key, ((const ExtEntry*) entry)->ext);
 }
 
-static int find_language(LangLookupParams params)
+static int find_language(const char* path, const char* ext)
 {
 	const char* search_key;
-	const char* base = NULL; /* only used for the no-extension path */
+	const char* base = NULL;
 
-	if (!params.ext) {
-		/* No extension: match against the bare filename (e.g. Dockerfile). */
-		base = strrchr(params.path, '/');
-		search_key = base ? base + 1 : params.path;
+	if (!ext) {
+		base = strrchr(path, '/');
+		search_key = base ? base + 1 : path;
 	} else {
-		/* Skip the leading dot so "c" matches the table entry "c". */
-		search_key = params.ext + 1;
+		search_key = ext + 1; /* skip the leading dot */
 	}
 
 	const ExtEntry* found = (const ExtEntry*) bsearch(search_key, g_ext_table,
@@ -413,22 +450,22 @@ static int find_language(LangLookupParams params)
 	return found ? found->lang_idx : -1;
 }
 
-static inline bool is_space(char c)
+/* =========================================================================
+ * Core counting (pure — no global writes, safe to call from any thread)
+ * ========================================================================= */
+static inline bool is_space_char(char c)
 {
-	static const bool space_table[256] = {[' '] = true,
+	static const bool space_table[256] = {
+	    [' '] = true,
 	    ['\t'] = true,
 	    ['\n'] = true,
 	    ['\r'] = true,
 	    ['\v'] = true,
-	    ['\f'] = true};
+	    ['\f'] = true,
+	};
 	return space_table[(unsigned char) c];
 }
 
-/*
- * scan_for_end: scan [p, line_end) for a short block-end marker.
- * Uses memchr on the first character and memcmp for the rest — much cheaper
- * than strstr.  Bounded by line_end so we never scan past the current line.
- */
 static bool scan_for_end(const char* p, const char* line_end, const char* end,
  size_t end_len)
 {
@@ -439,7 +476,6 @@ static bool scan_for_end(const char* p, const char* line_end, const char* end,
 		if (!found) {
 			return false;
 		}
-		/* Need end_len bytes starting at found; check they fit. */
 		if ((size_t) (line_end - found) >= end_len &&
 		 memcmp(found, end, end_len) == 0) {
 			return true;
@@ -447,6 +483,14 @@ static bool scan_for_end(const char* p, const char* line_end, const char* end,
 		p = found + 1;
 	}
 	return false;
+}
+
+static bool is_ignored_extension(const char* ext)
+{
+	if (!ext) {
+		return false;
+	}
+	return set_contains_str(&g_ignored_set, ext) == SET_TRUE;
 }
 
 static Counts count_file(const char* path, int lang_idx)
@@ -458,7 +502,6 @@ static Counts count_file(const char* path, int lang_idx)
 		return c;
 	}
 
-	/* Read the entire file in one syscall into a heap buffer. */
 	if (fseek(f, 0, SEEK_END) != 0) {
 		fclose(f);
 		return c;
@@ -480,8 +523,6 @@ static Counts count_file(const char* path, int lang_idx)
 	}
 	size_t nread = fread(buf, 1, (size_t) file_len, f);
 	fclose(f);
-	/* fread() returns at most the requested count; assert gives the static
-	 * analyzer a provable upper bound so it can verify buf[nread] is safe. */
 	assert(nread <= (size_t) file_len);
 	buf[nread] = '\0';
 
@@ -493,21 +534,17 @@ static Counts count_file(const char* path, int lang_idx)
 	char* file_end = buf + nread;
 
 	while (cur < file_end) {
-		/* Find end of this line. */
 		char* lf = (char*) memchr(cur, '\n', (size_t) (file_end - cur));
 		char* line_end = lf ? lf : file_end;
 
-		/* Temporarily NUL-terminate so string functions work on this line. */
 		char saved = *line_end;
 		*line_end = '\0';
 
 		if (l == NULL) {
-			/* Unknown language: count everything as code. */
 			c.code++;
 		} else {
-			/* Skip leading whitespace. */
 			char* p = cur;
-			while (p < line_end && is_space(*p)) {
+			while (p < line_end && is_space_char(*p)) {
 				p++;
 			}
 
@@ -523,7 +560,6 @@ static Counts count_file(const char* path, int lang_idx)
 						in_block = false;
 					}
 				} else {
-					/* Line-comment check with first-char pre-filter. */
 					for (int i = 0; i < l->n_line_comments; i++) {
 						if (p[0] == l->line_comments[i][0] &&
 						 strncmp(p, l->line_comments[i],
@@ -533,7 +569,6 @@ static Counts count_file(const char* path, int lang_idx)
 						}
 					}
 
-					/* Block-comment open check with first-char pre-filter. */
 					if (!is_comment) {
 						for (int i = 0; i < l->n_block_comments; i++) {
 							if (p[0] == l->block_start[i][0] &&
@@ -560,7 +595,6 @@ static Counts count_file(const char* path, int lang_idx)
 			}
 		}
 
-		/* Restore the byte we stomped and advance past the newline. */
 		*line_end = saved;
 		cur = lf ? lf + 1 : file_end;
 	}
@@ -569,60 +603,239 @@ static Counts count_file(const char* path, int lang_idx)
 	return c;
 }
 
-static void walk_dir(const char* path);
-
-static bool is_ignored_extension(const char* ext)
-{
-	if (!ext) {
-		return false;
-	}
-	/* O(1) hash-set lookup — replaces the original O(n) linear scan. */
-	return set_contains_str(&g_ignored_set, ext) == SET_TRUE;
-}
-
-/*
- * process_file: handle a path that is already known to be a regular file.
- * Called from both process_path (command-line argument) and walk_dir
- * (when d_type == DT_REG), so the stat/lstat classification is done by the
- * caller and does not need to be repeated here.
- */
-static void process_file(const char* path)
+/* =========================================================================
+ * Per-thread file processing — appends to the thread's private FileResult
+ * array.  No locks needed; nothing shared is written here.
+ * ========================================================================= */
+static void process_file_local(ThreadState* ts, const char* path)
 {
 	const char* ext = strrchr(path, '.');
 
 	if (is_ignored_extension(ext)) {
 		return;
 	}
-	if (g_n_files >= g_files_capacity) {
-		g_files_capacity = g_files_capacity == 0 ? 1024 : g_files_capacity * 2;
-		FileResult* temp = (FileResult*) realloc(g_files,
-		 sizeof(FileResult) * (size_t) g_files_capacity);
-		if (!temp) {
-			return;
-		}
-		g_files = temp;
-	}
 
-	int li = find_language((LangLookupParams) {path, ext});
+	int li = find_language(path, ext);
 	if (li == -1 && !g_list_unknown) {
 		return;
 	}
-	FileResult* fr = &g_files[g_n_files++];
+
+	/* Grow the private array if needed. */
+	if (ts->n_files >= ts->capacity) {
+		int new_cap = ts->capacity * 2;
+		FileResult* tmp = (FileResult*) realloc(ts->files,
+		 sizeof(FileResult) * (size_t) new_cap);
+		if (!tmp) {
+			return;
+		}
+		ts->files = tmp;
+		ts->capacity = new_cap;
+	}
+
+	FileResult* fr = &ts->files[ts->n_files++];
 	fr->path = strdup(path);
 	fr->ext = ext ? strdup(ext) : NULL;
 	fr->lang_idx = li;
 	fr->counts = count_file(path, li);
 }
 
-static void process_path(const char* path)
+/* =========================================================================
+ * Work queue implementation
+ * ========================================================================= */
+static int wq_init(WorkQueue* q, size_t initial_cap)
+{
+	q->paths = (char**) malloc(sizeof(char*) * initial_cap);
+	if (!q->paths) {
+		return -1;
+	}
+	q->cap = initial_cap;
+	q->head = 0;
+	q->tail = 0;
+	q->count = 0;
+	q->finished = false;
+
+	if (pthread_mutex_init(&q->lock, NULL) != 0) {
+		free(q->paths);
+		return -1;
+	}
+	if (pthread_cond_init(&q->not_empty, NULL) != 0) {
+		pthread_mutex_destroy(&q->lock);
+		free(q->paths);
+		return -1;
+	}
+	if (pthread_cond_init(&q->not_full, NULL) != 0) {
+		pthread_cond_destroy(&q->not_empty);
+		pthread_mutex_destroy(&q->lock);
+		free(q->paths);
+		return -1;
+	}
+	return 0;
+}
+
+static void wq_push(WorkQueue* q, char* path)
+{
+	pthread_mutex_lock(&q->lock);
+
+	/* Grow queue if full — double capacity. */
+	while (q->count == q->cap) {
+		/*
+		 * Rather than blocking the producer (which would stall directory
+		 * walking), we grow the buffer inline under the lock.  The queue
+		 * rarely exceeds its initial capacity for typical trees; for
+		 * extreme cases (Linux kernel) the one or two doublings are cheap
+		 * relative to the I/O work waiting in the queue.
+		 */
+		size_t new_cap = q->cap * 2;
+		char** new_buf = (char**) malloc(sizeof(char*) * new_cap);
+		if (!new_buf) {
+			/*
+			 * Allocation failed: fall back to blocking on not_full and
+			 * wait for workers to drain entries.  This path is extremely
+			 * unlikely — it requires both a huge queue AND an OOM
+			 * condition simultaneously.
+			 */
+			pthread_cond_wait(&q->not_full, &q->lock);
+			continue;
+		}
+		/* Linearise the circular buffer into the new allocation. */
+		for (size_t i = 0; i < q->count; i++) {
+			new_buf[i] = q->paths[(q->head + i) % q->cap];
+		}
+		free(q->paths);
+		q->paths = new_buf;
+		q->head = 0;
+		q->tail = q->count;
+		q->cap = new_cap;
+	}
+
+	q->paths[q->tail] = path;
+	q->tail = (q->tail + 1) % q->cap;
+	q->count++;
+
+	pthread_cond_signal(&q->not_empty);
+	pthread_mutex_unlock(&q->lock);
+}
+
+/*
+ * wq_pop: blocks until either a path is available or the queue is finished
+ * and empty.  Returns NULL (sentinel) when workers should exit.
+ */
+static char* wq_pop(WorkQueue* q)
+{
+	pthread_mutex_lock(&q->lock);
+
+	while (q->count == 0 && !q->finished) {
+		pthread_cond_wait(&q->not_empty, &q->lock);
+	}
+
+	if (q->count == 0) {
+		/* finished == true and empty: signal other sleeping workers, then exit.
+		 */
+		pthread_cond_broadcast(&q->not_empty);
+		pthread_mutex_unlock(&q->lock);
+		return NULL;
+	}
+
+	char* path = q->paths[q->head];
+	q->head = (q->head + 1) % q->cap;
+	q->count--;
+
+	pthread_cond_signal(&q->not_full);
+	pthread_mutex_unlock(&q->lock);
+	return path;
+}
+
+static void wq_finish(WorkQueue* q)
+{
+	pthread_mutex_lock(&q->lock);
+	q->finished = true;
+	pthread_cond_broadcast(&q->not_empty);
+	pthread_mutex_unlock(&q->lock);
+}
+
+static void wq_destroy(WorkQueue* q)
+{
+	free(q->paths);
+	pthread_cond_destroy(&q->not_full);
+	pthread_cond_destroy(&q->not_empty);
+	pthread_mutex_destroy(&q->lock);
+}
+
+/* =========================================================================
+ * Worker thread entry point
+ * ========================================================================= */
+static void* worker_thread(void* arg)
+{
+	ThreadState* ts = (ThreadState*) arg;
+	for (;;) {
+		char* path = wq_pop(ts->queue);
+		if (!path) {
+			break; /* queue drained and finished */
+		}
+		process_file_local(ts, path);
+		free(path);
+	}
+	return NULL;
+}
+
+/* =========================================================================
+ * Directory walking — runs on the main thread and pushes paths onto the
+ * work queue.  Subdirectory recursion still happens inline here (the
+ * opendir/readdir calls are fast; the expensive work is count_file which
+ * happens in workers).
+ * ========================================================================= */
+static void walk_dir(const char* path, WorkQueue* queue)
+{
+	DIR* d = opendir(path);
+	if (!d) {
+		return;
+	}
+	struct dirent* entry;
+	while ((entry = readdir(d))) {
+		if (entry->d_name[0] == '.') {
+			continue;
+		}
+		char sub[PATH_BUF];
+		snprintf(sub, sizeof(sub), "%s/%s", path, entry->d_name);
+
+		switch (entry->d_type) {
+		case DT_REG:
+			wq_push(queue, strdup(sub));
+			break;
+		case DT_DIR:
+			if (g_recurse) {
+				walk_dir(sub, queue);
+			}
+			break;
+		case DT_LNK:
+			/* Always skip symlinks to prevent loops. */
+			break;
+		case DT_UNKNOWN: {
+			/* File system doesn't provide d_type; fall back to lstat. */
+			struct stat st;
+			if (lstat(sub, &st) != 0) {
+				break;
+			}
+			if (S_ISLNK(st.st_mode)) {
+				break;
+			}
+			if (S_ISREG(st.st_mode)) {
+				wq_push(queue, strdup(sub));
+			} else if (S_ISDIR(st.st_mode) && g_recurse) {
+				walk_dir(sub, queue);
+			}
+			break;
+		}
+		default:
+			break;
+		}
+	}
+	closedir(d);
+}
+
+static void process_path_producer(const char* path, WorkQueue* queue)
 {
 	struct stat st;
-	/*
-	 * BUG FIX: use lstat() instead of stat().
-	 * stat() follows symlinks, so a symlink pointing to a parent directory
-	 * causes infinite mutual recursion between process_path and walk_dir.
-	 * lstat() reports the symlink itself; we skip it unconditionally.
-	 */
 	if (lstat(path, &st) != 0) {
 		return;
 	}
@@ -631,7 +844,7 @@ static void process_path(const char* path)
 	}
 	if (S_ISDIR(st.st_mode)) {
 		if (g_recurse) {
-			walk_dir(path);
+			walk_dir(path, queue);
 		} else {
 			fprintf(stderr,
 			 "mini-loc: '%s' is a directory (use -r to recurse)\n", path);
@@ -641,67 +854,18 @@ static void process_path(const char* path)
 	if (!S_ISREG(st.st_mode)) {
 		return;
 	}
-	process_file(path);
+	wq_push(queue, strdup(path));
 }
 
-static void walk_dir(const char* path)
-{
-	DIR* d = opendir(path);
-	if (!d) {
-		return;
-	}
-	struct dirent* entry;
-	while ((entry = readdir(d))) {
-		if (entry->d_name[0] == '.') {
-			/*
-			 * Skips ".", "..", and all hidden entries (.git, .svn, .hg).
-			 * Hidden directories can contain symlink loops back to parent
-			 * directories — a source of infinite recursion.
-			 */
-			continue;
-		}
-		char sub[PATH_BUF];
-		snprintf(sub, sizeof(sub), "%s/%s", path, entry->d_name);
-
-		/*
-		 * Use d_type to classify the entry without an lstat() syscall.
-		 * This saves one syscall per file — on large trees (e.g. Linux
-		 * kernel at ~74k files) this eliminates tens of thousands of
-		 * syscalls.  DT_UNKNOWN is a fallback for file systems (e.g.
-		 * some network mounts) that do not populate d_type; in that case
-		 * we fall back to process_path() which calls lstat().
-		 */
-		switch (entry->d_type) {
-		case DT_REG:
-			process_file(sub);
-			break;
-		case DT_DIR:
-			if (g_recurse) {
-				walk_dir(sub);
-			}
-			break;
-		case DT_LNK:
-			/* Symlinks are always skipped to prevent loops. */
-			break;
-		case DT_UNKNOWN:
-			/* Fall back to lstat() for file systems without d_type. */
-			process_path(sub);
-			break;
-		default:
-			/* Ignore devices, sockets, FIFOs, etc. */
-			break;
-		}
-	}
-	closedir(d);
-}
-
+/* =========================================================================
+ * Report
+ * ========================================================================= */
 typedef struct {
 	int lang_idx;
 	int files;
 	Counts counts;
 } LangSum;
 
-/* Comparator: sort by total lines descending for the summary table. */
 static int lang_sum_cmp(const void* lang_sum_a, const void* lang_sum_b)
 {
 	const LangSum* la = (const LangSum*) lang_sum_a;
@@ -717,9 +881,9 @@ static int lang_sum_cmp(const void* lang_sum_a, const void* lang_sum_b)
 	return 0;
 }
 
-static void print_report(void)
+static void print_report(FileResult* files, int n_files)
 {
-	if (g_n_files == 0) {
+	if (n_files == 0) {
 		printf("mini-loc: no files processed.\n");
 		return;
 	}
@@ -730,10 +894,10 @@ static void print_report(void)
 			printf("%-45s %-10s %9s %9s %9s %9s\n", "File", "Ext", "Code",
 			 "Comment", "Blank", "Total");
 			printf("-----------------------------------------------------------"
-			       "----"
+			       "-----"
 			       "-------------------------------------------\n");
-			for (int i = 0; i < g_n_files; i++) {
-				FileResult* fr = &g_files[i];
+			for (int i = 0; i < n_files; i++) {
+				FileResult* fr = &files[i];
 				long total =
 				 fr->counts.code + fr->counts.comment + fr->counts.blank;
 				printf("%-45s %-10s %9ld %9ld %9ld %9ld\n", fr->path,
@@ -744,10 +908,10 @@ static void print_report(void)
 			printf("%-55s %9s %9s %9s %9s\n", "File", "Code", "Comment",
 			 "Blank", "Total");
 			printf("-----------------------------------------------------------"
-			       "----"
+			       "-----"
 			       "---------------------------\n");
-			for (int i = 0; i < g_n_files; i++) {
-				FileResult* fr = &g_files[i];
+			for (int i = 0; i < n_files; i++) {
+				FileResult* fr = &files[i];
 				long total =
 				 fr->counts.code + fr->counts.comment + fr->counts.blank;
 				printf("%-55s %9ld %9ld %9ld %9ld\n", fr->path, fr->counts.code,
@@ -762,9 +926,9 @@ static void print_report(void)
 	int lang_to_sum_idx[MAX_LANGS + 1];
 	memset(lang_to_sum_idx, -1, sizeof(lang_to_sum_idx));
 
-	for (int i = 0; i < g_n_files; i++) {
-		int li = g_files[i].lang_idx;
-		int map_idx = li + 1; /* Map -1 to 0, 0 to 1, etc. */
+	for (int i = 0; i < n_files; i++) {
+		int li = files[i].lang_idx;
+		int map_idx = li + 1;
 		int found = lang_to_sum_idx[map_idx];
 		if (found == -1) {
 			found = n_sums++;
@@ -774,9 +938,9 @@ static void print_report(void)
 			lang_to_sum_idx[map_idx] = found;
 		}
 		sums[found].files++;
-		sums[found].counts.code += g_files[i].counts.code;
-		sums[found].counts.comment += g_files[i].counts.comment;
-		sums[found].counts.blank += g_files[i].counts.blank;
+		sums[found].counts.code += files[i].counts.code;
+		sums[found].counts.comment += files[i].counts.comment;
+		sums[found].counts.blank += files[i].counts.blank;
 	}
 
 	long t_files = 0, t_code = 0, t_comm = 0, t_blank = 0;
@@ -827,6 +991,9 @@ static void print_report(void)
 	putchar('\n');
 }
 
+/* =========================================================================
+ * CLI callbacks
+ * ========================================================================= */
 static void cb_verbose(int argc, char** argv, void* user_data)
 {
 	(void) argc;
@@ -925,13 +1092,18 @@ static void cb_append(int argc, char** argv, void* user_data)
 	(void) user_data;
 }
 
+/* =========================================================================
+ * main
+ * ========================================================================= */
 int main(int argc, char** argv)
 {
+	/* --- Language initialisation (single-threaded, before any workers) --- */
 	set_init(&g_ignored_set);
 	g_ignored_set_ready = true;
 	load_languages(languages_json, languages_json_len, false);
 	build_lookup_table();
 
+	/* --- CLI setup --- */
 	CliParser parser;
 	cli_init(&parser,
 	 (CliInitParams) {
@@ -957,39 +1129,107 @@ int main(int argc, char** argv)
 	 (CliArgument) {"--filter", NULL, "Filter output: code, comment, or blank",
 	     cb_filter, NULL});
 
-	if (argc < 2) {
-		process_path(".");
-	} else {
-		/* Parse flags */
+	/* --- Parse flags (no paths yet) --- */
+	if (argc >= 2) {
 		for (int i = 1; i < argc; i++) {
-			if (argv[i][0] == '-') {
-				for (size_t j = 0; j < parser.arg_count; j++) {
-					if (strcmp(argv[i], parser.registered_args[j].name) == 0 ||
-					 (parser.registered_args[j].shorthand &&
-					  strcmp(argv[i], parser.registered_args[j].shorthand) ==
-					   0)) {
-						int n_args = 0;
-						if (strcmp(argv[i], "-l") == 0 ||
-						 strcmp(argv[i], "--lang-file") == 0 ||
-						 strcmp(argv[i], "-a") == 0 ||
-						 strcmp(argv[i], "--append") == 0 ||
-						 strcmp(argv[i], "--filter") == 0) {
-							n_args = 1;
-						}
-						parser.registered_args[j].callback(n_args,
-						 (n_args > 0) ? &argv[i + 1] : NULL,
-						 parser.registered_args[j].user_data);
-						if (n_args > 0) {
-							i++;
-						}
-						break;
+			if (argv[i][0] != '-') {
+				continue;
+			}
+			for (size_t j = 0; j < parser.arg_count; j++) {
+				if (strcmp(argv[i], parser.registered_args[j].name) == 0 ||
+				 (parser.registered_args[j].shorthand &&
+				  strcmp(argv[i], parser.registered_args[j].shorthand) == 0)) {
+					int n_args = 0;
+					if (strcmp(argv[i], "-l") == 0 ||
+					 strcmp(argv[i], "--lang-file") == 0 ||
+					 strcmp(argv[i], "-a") == 0 ||
+					 strcmp(argv[i], "--append") == 0 ||
+					 strcmp(argv[i], "--filter") == 0) {
+						n_args = 1;
 					}
+					parser.registered_args[j].callback(n_args,
+					 (n_args > 0) ? &argv[i + 1] : NULL,
+					 parser.registered_args[j].user_data);
+					if (n_args > 0) {
+						i++;
+					}
+					break;
 				}
 			}
 		}
+	}
 
-		/* Process paths */
-		bool any_file = false;
+	/* --- Determine thread count --- */
+	long nproc = sysconf(_SC_NPROCESSORS_ONLN);
+	if (nproc < 1) {
+		nproc = 1;
+	}
+	if (nproc > MAX_THREADS) {
+		nproc = MAX_THREADS;
+	}
+	int n_threads = (int) nproc;
+
+	/* --- Initialise work queue --- */
+	WorkQueue queue;
+	if (wq_init(&queue, QUEUE_INIT_CAP) != 0) {
+		fprintf(stderr, "mini-loc: failed to initialise work queue\n");
+		cli_destroy(&parser);
+		set_destroy(&g_ignored_set);
+		return 1;
+	}
+
+	/* --- Allocate per-thread state --- */
+	ThreadState* states =
+	 (ThreadState*) malloc(sizeof(ThreadState) * (size_t) n_threads);
+	if (!states) {
+		fprintf(stderr, "mini-loc: out of memory\n");
+		wq_destroy(&queue);
+		cli_destroy(&parser);
+		set_destroy(&g_ignored_set);
+		return 1;
+	}
+	for (int i = 0; i < n_threads; i++) {
+		states[i].queue = &queue;
+		states[i].n_files = 0;
+		states[i].capacity = LOCAL_INIT_CAP;
+		states[i].files =
+		 (FileResult*) malloc(sizeof(FileResult) * (size_t) LOCAL_INIT_CAP);
+		if (!states[i].files) {
+			/* Clean up already-allocated states */
+			for (int k = 0; k < i; k++) {
+				free(states[k].files);
+			}
+			free(states);
+			wq_destroy(&queue);
+			cli_destroy(&parser);
+			set_destroy(&g_ignored_set);
+			return 1;
+		}
+	}
+
+	/* --- Spawn workers --- */
+	pthread_t* threads =
+	 (pthread_t*) malloc(sizeof(pthread_t) * (size_t) n_threads);
+	if (!threads) {
+		fprintf(stderr, "mini-loc: out of memory\n");
+		for (int i = 0; i < n_threads; i++) {
+			free(states[i].files);
+		}
+		free(states);
+		wq_destroy(&queue);
+		cli_destroy(&parser);
+		set_destroy(&g_ignored_set);
+		return 1;
+	}
+	for (int i = 0; i < n_threads; i++) {
+		pthread_create(&threads[i], NULL, worker_thread, &states[i]);
+	}
+
+	/* --- Producer: walk paths and push file paths onto the queue --- */
+	if (argc < 2) {
+		process_path_producer(".", &queue);
+	} else {
+		bool any_path = false;
 		for (int i = 1; i < argc; i++) {
 			if (argv[i][0] == '-') {
 				if (strcmp(argv[i], "-l") == 0 ||
@@ -1001,14 +1241,66 @@ int main(int argc, char** argv)
 				}
 				continue;
 			}
-			process_path(argv[i]);
-			any_file = true;
+			process_path_producer(argv[i], &queue);
+			any_path = true;
 		}
-		if (!any_file && g_n_files == 0) {
-			process_path(".");
+		if (!any_path) {
+			process_path_producer(".", &queue);
 		}
 	}
-	print_report();
+
+	/* Signal workers that no more paths are coming. */
+	wq_finish(&queue);
+
+	/* --- Join workers --- */
+	for (int i = 0; i < n_threads; i++) {
+		pthread_join(threads[i], NULL);
+	}
+	free(threads);
+
+	/* --- Merge per-thread results into one flat array --- */
+	int total_files = 0;
+	for (int i = 0; i < n_threads; i++) {
+		total_files += states[i].n_files;
+	}
+
+	FileResult* all_files = NULL;
+	if (total_files > 0) {
+		all_files =
+		 (FileResult*) malloc(sizeof(FileResult) * (size_t) total_files);
+		if (!all_files) {
+			fprintf(stderr, "mini-loc: out of memory during merge\n");
+			/* Fall through to cleanup; report will show 0 files. */
+			total_files = 0;
+		} else {
+			int offset = 0;
+			for (int i = 0; i < n_threads; i++) {
+				memcpy(&all_files[offset], states[i].files,
+				 sizeof(FileResult) * (size_t) states[i].n_files);
+				offset += states[i].n_files;
+			}
+		}
+	}
+
+	/* --- Free per-thread arrays (entries now copied into all_files) --- */
+	for (int i = 0; i < n_threads; i++) {
+		free(states[i].files);
+	}
+	free(states);
+
+	/* --- Report --- */
+	print_report(all_files, total_files);
+
+	/* --- Final cleanup --- */
+	if (all_files) {
+		for (int i = 0; i < total_files; i++) {
+			free(all_files[i].path);
+			free(all_files[i].ext);
+		}
+		free(all_files);
+	}
+
+	wq_destroy(&queue);
 	cli_destroy(&parser);
 	set_destroy(&g_ignored_set);
 	return 0;

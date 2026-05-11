@@ -76,7 +76,7 @@ LDFLAGS = -Wl,-z,relro \
 OPTFLAGS = -O3 -march=native -flto
 
 # Combine all flags
-ALL_CFLAGS = $(CFLAGS) $(HARDENING) $(OPTFLAGS)
+ALL_CFLAGS = $(CFLAGS) $(HARDENING) $(OPTFLAGS) -pthread
 
 # Targets
 .PHONY: all clean run format lint directories install uninstall build-json
@@ -99,7 +99,7 @@ $(BUILD_DIR)/set.o: src/include/set.c
 # Rule to link the executable in the bin/ directory
 $(EXECUTABLE): $(OBJS)
 	@echo "Linking $@ ..."
-	$(CC) $(ALL_CFLAGS) $(LDFLAGS) -o $(EXECUTABLE) $(OBJS) -lm
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) -o $(EXECUTABLE) $(OBJS) -lm -pthread
 
 build-json:
 	@echo "Creating language header"
