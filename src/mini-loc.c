@@ -4,6 +4,10 @@
  * Language definitions loaded from languages.json (no external deps).
  */
 #define OFFSET 700
+/* _DEFAULT_SOURCE exposes DT_REG/DT_DIR/DT_LNK/DT_UNKNOWN in <dirent.h> */
+#ifndef _DEFAULT_SOURCE
+#define _DEFAULT_SOURCE
+#endif
 #include <ctype.h>
 #include <dirent.h>
 #include <stdbool.h>
@@ -101,9 +105,6 @@ static bool g_show_files = false;
 static bool g_list_unknown = false;
 static bool g_verbose = false;
 static char* g_filter = NULL;
-
-static long g_skipped_media = 0;
-static long g_special_files = 0;
 
 static const char* json_skip_whitespace(const char* p)
 {
@@ -385,26 +386,37 @@ typedef struct {
 	const char* ext;
 } LangLookupParams;
 
+/*
+ * ext_cmp_str: comparator for bsearch() that takes a raw C string as the key
+ * instead of a full ExtEntry.  This lets find_language() pass the extension
+ * pointer directly, avoiding the memset + strncpy into a temporary ExtEntry
+ * that the old implementation required.
+ */
+static int ext_cmp_str(const void* key, const void* entry)
+{
+	return strcasecmp((const char*) key, ((const ExtEntry*) entry)->ext);
+}
+
 static int find_language(LangLookupParams params)
 {
-	ExtEntry key;
-	memset(&key, 0, sizeof(key));
+	const char* search_key;
+	const char* base = NULL; /* only used for the no-extension path */
 
 	if (!params.ext) {
-		/* No extension: match against bare filenames (e.g. Dockerfile). */
-		const char* base = strrchr(params.path, '/');
-		base = base ? base + 1 : params.path;
-		strncpy(key.ext, base, MAX_EXT_LEN - 1);
+		/* No extension: match against the bare filename (e.g. Dockerfile). */
+		base = strrchr(params.path, '/');
+		search_key = base ? base + 1 : params.path;
 	} else {
-		strncpy(key.ext, params.ext + 1, MAX_EXT_LEN - 1);
+		/* Skip the leading dot so "c" matches the table entry "c". */
+		search_key = params.ext + 1;
 	}
 
-	const ExtEntry* found = (const ExtEntry*) bsearch(&key, g_ext_table,
-	 (size_t) g_n_ext_entries, sizeof(ExtEntry), ext_entry_cmp);
+	const ExtEntry* found = (const ExtEntry*) bsearch(search_key, g_ext_table,
+	 (size_t) g_n_ext_entries, sizeof(ExtEntry), ext_cmp_str);
 	return found ? found->lang_idx : -1;
 }
 
-static bool is_space(char c)
+static inline bool is_space(char c)
 {
 	static const bool space_table[256] = {[' '] = true,
 	    ['\t'] = true,
@@ -415,88 +427,150 @@ static bool is_space(char c)
 	return space_table[(unsigned char) c];
 }
 
+/*
+ * scan_for_end: manual scan for a short block-end marker (e.g. star-slash).
+ * Replaces strstr() inside the hot in_block path.  Because block-end tokens
+ * are always short we use memchr on the first character and memcmp for the
+ * rest -- much cheaper than a general strstr.
+ */
+static bool scan_for_end(const char* p, const char* end, size_t end_len)
+{
+	char first = end[0];
+	while (*p) {
+		const char* found = (const char*) memchr(p, (unsigned char) first,
+		 strlen(p));
+		if (!found) {
+			return false;
+		}
+		if (memcmp(found, end, end_len) == 0) {
+			return true;
+		}
+		p = found + 1;
+	}
+	return false;
+}
+
 static Counts count_file(const char* path, int lang_idx)
 {
 	Counts c = {0, 0, 0};
-	FILE* f = fopen(path, "r");
+
+	FILE* f = fopen(path, "rb");
 	if (!f) {
 		return c;
 	}
-	char line[LINE_BUF];
+
+	/* Read the entire file in one syscall into a heap buffer. */
+	if (fseek(f, 0, SEEK_END) != 0) {
+		fclose(f);
+		return c;
+	}
+	long file_len = ftell(f);
+	if (file_len < 0) {
+		fclose(f);
+		return c;
+	}
+	rewind(f);
+
+	if (file_len == 0) {
+		fclose(f);
+		return c;
+	}
+
+	char* buf = (char*) malloc((size_t) file_len + 1);
+	if (!buf) {
+		fclose(f);
+		return c;
+	}
+	size_t nread = fread(buf, 1, (size_t) file_len, f);
+	fclose(f);
+	buf[nread] = '\0';
+
+	Language* l = (lang_idx >= 0) ? &g_langs[lang_idx] : NULL;
 	bool in_block = false;
 	int block_idx = -1;
-	while (fgets(line, sizeof(line), f)) {
-		if (lang_idx == -1) {
+
+	char* cur = buf;
+	char* file_end = buf + nread;
+
+	while (cur < file_end) {
+		/* Find end of this line. */
+		char* lf = (char*) memchr(cur, '\n', (size_t)(file_end - cur));
+		char* line_end = lf ? lf : file_end;
+
+		/* Temporarily NUL-terminate so string functions work on this line. */
+		char saved = *line_end;
+		*line_end = '\0';
+
+		if (l == NULL) {
+			/* Unknown language: count everything as code. */
 			c.code++;
-			continue;
-		}
-		char* p = line;
-		while (*p && is_space(*p)) {
-			p++;
-		}
-		if (!*p) {
-			c.blank++;
-			continue;
-		}
-		Language* l = &g_langs[lang_idx];
-		bool is_comment = false;
-		if (in_block) {
-			is_comment = true;
-			if (strstr(p, l->block_end[block_idx])) {
-				in_block = false;
-			}
 		} else {
-			for (int i = 0; i < l->n_line_comments; i++) {
-				if (strncmp(p, l->line_comments[i], l->line_comment_lens[i]) ==
-				 0) {
-					is_comment = true;
-					break;
-				}
+			/* Skip leading whitespace. */
+			char* p = cur;
+			while (p < line_end && is_space(*p)) {
+				p++;
 			}
-			if (!is_comment) {
-				for (int i = 0; i < l->n_block_comments; i++) {
-					if (strncmp(p, l->block_start[i], l->block_start_lens[i]) ==
-					 0) {
-						is_comment = true;
-						if (!strstr(p + l->block_start_lens[i],
-						     l->block_end[i])) {
-							in_block = true;
-							block_idx = i;
+
+			if (p == line_end) {
+				c.blank++;
+			} else {
+				bool is_comment = false;
+
+				if (in_block) {
+					is_comment = true;
+					if (scan_for_end(p, l->block_end[block_idx],
+					     l->block_end_lens[block_idx])) {
+						in_block = false;
+					}
+				} else {
+					/* Line-comment check with first-char pre-filter. */
+					for (int i = 0; i < l->n_line_comments; i++) {
+						if (p[0] == l->line_comments[i][0] &&
+						 strncmp(p, l->line_comments[i],
+						  l->line_comment_lens[i]) == 0) {
+							is_comment = true;
+							break;
 						}
-						break;
+					}
+
+					/* Block-comment open check with first-char pre-filter. */
+					if (!is_comment) {
+						for (int i = 0; i < l->n_block_comments; i++) {
+							if (p[0] == l->block_start[i][0] &&
+							 strncmp(p, l->block_start[i],
+							  l->block_start_lens[i]) == 0) {
+								is_comment = true;
+								if (!scan_for_end(
+								     p + l->block_start_lens[i],
+								     l->block_end[i],
+								     l->block_end_lens[i])) {
+									in_block = true;
+									block_idx = i;
+								}
+								break;
+							}
+						}
 					}
 				}
+
+				if (is_comment) {
+					c.comment++;
+				} else {
+					c.code++;
+				}
 			}
 		}
-		if (is_comment) {
-			c.comment++;
-		} else {
-			c.code++;
-		}
+
+		/* Restore the byte we stomped and advance past the newline. */
+		*line_end = saved;
+		cur = lf ? lf + 1 : file_end;
 	}
-	fclose(f);
+
+	free(buf);
 	return c;
 }
 
 static void walk_dir(const char* path);
-
-static int is_media(const char* ext)
-{
-	if (!ext) {
-		return 0;
-	}
-	return (strcmp(ext, ".png") == 0 || strcmp(ext, ".pdf") == 0 ||
-	 strcmp(ext, ".webm") == 0);
-}
-
-static int is_special(const char* ext)
-{
-	if (!ext) {
-		return 0;
-	}
-	return (strcmp(ext, ".in") == 0 || strcmp(ext, ".out") == 0 ||
-	 strcmp(ext, ".env") == 0);
-}
 
 static bool is_ignored_extension(const char* ext)
 {
@@ -505,6 +579,40 @@ static bool is_ignored_extension(const char* ext)
 	}
 	/* O(1) hash-set lookup — replaces the original O(n) linear scan. */
 	return set_contains_str(&g_ignored_set, ext) == SET_TRUE;
+}
+
+/*
+ * process_file: handle a path that is already known to be a regular file.
+ * Called from both process_path (command-line argument) and walk_dir
+ * (when d_type == DT_REG), so the stat/lstat classification is done by the
+ * caller and does not need to be repeated here.
+ */
+static void process_file(const char* path)
+{
+	const char* ext = strrchr(path, '.');
+
+	if (is_ignored_extension(ext)) {
+		return;
+	}
+	if (g_n_files >= g_files_capacity) {
+		g_files_capacity = g_files_capacity == 0 ? 1024 : g_files_capacity * 2;
+		FileResult* temp = (FileResult*) realloc(g_files,
+		 sizeof(FileResult) * (size_t) g_files_capacity);
+		if (!temp) {
+			return;
+		}
+		g_files = temp;
+	}
+
+	int li = find_language((LangLookupParams) {path, ext});
+	if (li == -1 && !g_list_unknown) {
+		return;
+	}
+	FileResult* fr = &g_files[g_n_files++];
+	fr->path = strdup(path);
+	fr->ext = ext ? strdup(ext) : NULL;
+	fr->lang_idx = li;
+	fr->counts = count_file(path, li);
 }
 
 static void process_path(const char* path)
@@ -531,39 +639,10 @@ static void process_path(const char* path)
 		}
 		return;
 	}
-
-	const char* ext = strrchr(path, '.');
-
-	if (!S_ISREG(st.st_mode) || is_ignored_extension(ext)) {
+	if (!S_ISREG(st.st_mode)) {
 		return;
 	}
-	if (is_media(ext)) {
-		g_skipped_media++;
-		return;
-	}
-	if (is_special(ext)) {
-		g_special_files++;
-		return;
-	}
-	if (g_n_files >= g_files_capacity) {
-		g_files_capacity = g_files_capacity == 0 ? 1024 : g_files_capacity * 2;
-		FileResult* temp = (FileResult*) realloc(g_files,
-		 sizeof(FileResult) * (size_t) g_files_capacity);
-		if (!temp) {
-			return;
-		}
-		g_files = temp;
-	}
-
-	int li = find_language((LangLookupParams) {path, ext});
-	if (li == -1 && !g_list_unknown) {
-		return;
-	}
-	FileResult* fr = &g_files[g_n_files++];
-	fr->path = strdup(path);
-	fr->ext = ext ? strdup(ext) : NULL;
-	fr->lang_idx = li;
-	fr->counts = count_file(path, li);
+	process_file(path);
 }
 
 static void walk_dir(const char* path)
@@ -574,24 +653,65 @@ static void walk_dir(const char* path)
 	}
 	struct dirent* entry;
 	while ((entry = readdir(d))) {
-		if (strcmp(entry->d_name, ".") == 0 ||
-		 strcmp(entry->d_name, "..") == 0) {
-			continue;
-		}
-		/*
-		 * BUG FIX: skip hidden entries (dot-prefixed names such as .git,
-		 * .svn, .hg).  These directories can contain enormous file trees
-		 * and, more importantly, may hold internal symlinks that loop back
-		 * to parent directories — a second source of infinite recursion.
-		 */
 		if (entry->d_name[0] == '.') {
+			/*
+			 * Skips ".", "..", and all hidden entries (.git, .svn, .hg).
+			 * Hidden directories can contain symlink loops back to parent
+			 * directories — a source of infinite recursion.
+			 */
 			continue;
 		}
 		char sub[PATH_BUF];
 		snprintf(sub, sizeof(sub), "%s/%s", path, entry->d_name);
-		process_path(sub);
+
+		/*
+		 * Use d_type to classify the entry without an lstat() syscall.
+		 * This saves one syscall per file — on large trees (e.g. Linux
+		 * kernel at ~74k files) this eliminates tens of thousands of
+		 * syscalls.  DT_UNKNOWN is a fallback for file systems (e.g.
+		 * some network mounts) that do not populate d_type; in that case
+		 * we fall back to process_path() which calls lstat().
+		 */
+		switch (entry->d_type) {
+			case DT_REG:
+				process_file(sub);
+				break;
+			case DT_DIR:
+				if (g_recurse) {
+					walk_dir(sub);
+				}
+				break;
+			case DT_LNK:
+				/* Symlinks are always skipped to prevent loops. */
+				break;
+			case DT_UNKNOWN:
+				/* Fall back to lstat() for file systems without d_type. */
+				process_path(sub);
+				break;
+			default:
+				/* Ignore devices, sockets, FIFOs, etc. */
+				break;
+		}
 	}
 	closedir(d);
+}
+
+typedef struct {
+	int lang_idx;
+	int files;
+	Counts counts;
+} LangSum;
+
+/* Comparator: sort by total lines descending for the summary table. */
+static int lang_sum_cmp(const void* a, const void* b)
+{
+	const LangSum* la = (const LangSum*) a;
+	const LangSum* lb = (const LangSum*) b;
+	long total_a = la->counts.code + la->counts.comment + la->counts.blank;
+	long total_b = lb->counts.code + lb->counts.comment + lb->counts.blank;
+	if (total_b > total_a) return 1;
+	if (total_b < total_a) return -1;
+	return 0;
 }
 
 static void print_report(void)
@@ -634,12 +754,6 @@ static void print_report(void)
 		printf("\n");
 	}
 
-	typedef struct {
-		int lang_idx;
-		int files;
-		Counts counts;
-	} LangSum;
-
 	LangSum sums[MAX_LANGS + 1];
 	int n_sums = 0;
 	int lang_to_sum_idx[MAX_LANGS + 1];
@@ -671,27 +785,7 @@ static void print_report(void)
 	}
 	long grand_total = t_code + t_comm + t_blank;
 
-	for (int i = 0; i < n_sums - 1; i++) {
-		for (int j = i + 1; j < n_sums; j++) {
-			double pct_i = (grand_total > 0) ?
-			 (100.0 *
-			  (double) (sums[i].counts.code + sums[i].counts.comment +
-			   sums[i].counts.blank) /
-			  (double) grand_total) :
-			 0.0;
-			double pct_j = (grand_total > 0) ?
-			 (100.0 *
-			  (double) (sums[j].counts.code + sums[j].counts.comment +
-			   sums[j].counts.blank) /
-			  (double) grand_total) :
-			 0.0;
-			if (pct_j > pct_i) {
-				LangSum tmp = sums[i];
-				sums[i] = sums[j];
-				sums[j] = tmp;
-			}
-		}
-	}
+	qsort(sums, (size_t) n_sums, sizeof(LangSum), lang_sum_cmp);
 
 	printf("\n %sLanguage Summary%s \n", ANSI_CYAN, ANSI_RESET);
 	printf("%-22s %7s %10s %7s %10s %10s %10s\n", "Language", "Files", "Code",
