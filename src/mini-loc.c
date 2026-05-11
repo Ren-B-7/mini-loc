@@ -89,6 +89,11 @@ typedef struct {
 	int lang_idx;
 } ExtEntry;
 
+typedef struct {
+	const char* path;
+	const char* ext;
+} LangLookupParams;
+
 /* =========================================================================
  * Read-only globals — written once at startup, never mutated afterwards.
  * Workers can read these without any locking.
@@ -149,7 +154,7 @@ static const char* json_read_string(const char* p, char* buf, size_t len);
 static const char* json_skip_value(const char* p);
 static void load_languages(const unsigned char* data, size_t len, bool append);
 static void build_lookup_table(void);
-static int find_language(const char* path, const char* ext);
+static int find_language(LangLookupParams params);
 static bool is_ignored_extension(const char* ext);
 static Counts count_file(const char* path, int lang_idx);
 static void process_file_local(ThreadState* ts, const char* path);
@@ -433,16 +438,16 @@ static int ext_cmp_str(const void* key, const void* entry)
 	return strcasecmp((const char*) key, ((const ExtEntry*) entry)->ext);
 }
 
-static int find_language(const char* path, const char* ext)
+static int find_language(LangLookupParams params)
 {
 	const char* search_key;
 	const char* base = NULL;
 
-	if (!ext) {
-		base = strrchr(path, '/');
-		search_key = base ? base + 1 : path;
+	if (!params.ext) {
+		base = strrchr(params.path, '/');
+		search_key = base ? base + 1 : params.path;
 	} else {
-		search_key = ext + 1; /* skip the leading dot */
+		search_key = params.ext + 1; /* skip the leading dot */
 	}
 
 	const ExtEntry* found = (const ExtEntry*) bsearch(search_key, g_ext_table,
@@ -507,7 +512,7 @@ static Counts count_file(const char* path, int lang_idx)
 		return c;
 	}
 	long file_len = ftell(f);
-	if (file_len < 0) {
+	if (file_len < 0 || file_len >= MAX_FILE_SIZE) {
 		fclose(f);
 		return c;
 	}
@@ -516,29 +521,40 @@ static Counts count_file(const char* path, int lang_idx)
 		return c;
 	}
 
-	char* buf = (char*) malloc((size_t) file_len + 1);
+	size_t buf_size = (size_t) file_len + 1;
+	if (buf_size == 0) {
+		fclose(f);
+		return c;
+	}
+	char* buf = (char*) calloc(buf_size, 1);
 	if (!buf) {
 		fclose(f);
 		return c;
 	}
 	size_t nread = fread(buf, 1, (size_t) file_len, f);
 	fclose(f);
-	assert(nread <= (size_t) file_len);
-	buf[nread] = '\0';
+	if (nread >= buf_size) {
+		nread = buf_size - 1;
+	}
 
 	Language* l = (lang_idx >= 0) ? &g_langs[lang_idx] : NULL;
 	bool in_block = false;
 	int block_idx = -1;
 
-	char* cur = buf;
 	char* file_end = buf + nread;
+	char* cur = buf;
 
 	while (cur < file_end) {
 		char* lf = (char*) memchr(cur, '\n', (size_t) (file_end - cur));
 		char* line_end = lf ? lf : file_end;
 
-		char saved = *line_end;
-		*line_end = '\0';
+		size_t line_end_off = (size_t) (line_end - buf);
+		if (line_end_off >= buf_size) {
+			break;
+		}
+
+		char saved = buf[line_end_off];
+		buf[line_end_off] = '\0';
 
 		if (l == NULL) {
 			c.code++;
@@ -595,7 +611,7 @@ static Counts count_file(const char* path, int lang_idx)
 			}
 		}
 
-		*line_end = saved;
+		buf[line_end_off] = saved;
 		cur = lf ? lf + 1 : file_end;
 	}
 
@@ -615,7 +631,7 @@ static void process_file_local(ThreadState* ts, const char* path)
 		return;
 	}
 
-	int li = find_language(path, ext);
+	int li = find_language((LangLookupParams) {path, ext});
 	if (li == -1 && !g_list_unknown) {
 		return;
 	}
@@ -655,18 +671,18 @@ static int wq_init(WorkQueue* q, size_t initial_cap)
 	q->finished = false;
 
 	if (pthread_mutex_init(&q->lock, NULL) != 0) {
-		free(q->paths);
+		free((void*) q->paths);
 		return -1;
 	}
 	if (pthread_cond_init(&q->not_empty, NULL) != 0) {
 		pthread_mutex_destroy(&q->lock);
-		free(q->paths);
+		free((void*) q->paths);
 		return -1;
 	}
 	if (pthread_cond_init(&q->not_full, NULL) != 0) {
 		pthread_cond_destroy(&q->not_empty);
 		pthread_mutex_destroy(&q->lock);
-		free(q->paths);
+		free((void*) q->paths);
 		return -1;
 	}
 	return 0;
@@ -701,7 +717,7 @@ static void wq_push(WorkQueue* q, char* path)
 		for (size_t i = 0; i < q->count; i++) {
 			new_buf[i] = q->paths[(q->head + i) % q->cap];
 		}
-		free(q->paths);
+		free((void*) q->paths);
 		q->paths = new_buf;
 		q->head = 0;
 		q->tail = q->count;
@@ -755,7 +771,7 @@ static void wq_finish(WorkQueue* q)
 
 static void wq_destroy(WorkQueue* q)
 {
-	free(q->paths);
+	free((void*) q->paths);
 	pthread_cond_destroy(&q->not_full);
 	pthread_cond_destroy(&q->not_empty);
 	pthread_mutex_destroy(&q->lock);
