@@ -15,6 +15,7 @@ Built with speed in mind, `mini-loc` handles massive codebases in sub-second tim
 
 ![Performance Breakdowns Linux + Rust](Linux_and_Rust_index.png)
 ![Performance Breakdowns Ladybird + Node](Ladybird_and_Node_index.png)
+![Performance Breakdowns Vscode + Pihole](Vscode_and_Pihole_index.png)
 
 ## Building
 
