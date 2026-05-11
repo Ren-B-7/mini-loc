@@ -19,6 +19,7 @@ CC = gcc
 CFLAGS = -std=c99 \
          -D_POSIX_C_SOURCE=200809L \
          -D_XOPEN_SOURCE=700 \
+         -D_DEFAULT_SOURCE \
          -pedantic \
          -pedantic-errors \
          -Wall \
@@ -123,7 +124,7 @@ format:
 
 # Run static analysis with clang-tidy
 CLANG_TIDY_CHECKS = -checks=-*,bugprone-*,clang-analyzer-*
-CLANG_TIDY_FLAGS = -std=c99 -pedantic -Wall -Wextra -Isrc -Isrc/include -D_XOPEN_SOURCE=700
+CLANG_TIDY_FLAGS = -std=c99 -pedantic -Wall -Wextra -Isrc -Isrc/include -D_XOPEN_SOURCE=700 -D_DEFAULT_SOURCE
 
 lint:
 	@echo "Running static analysis..."

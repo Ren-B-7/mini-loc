@@ -4,10 +4,7 @@
  * Language definitions loaded from languages.json (no external deps).
  */
 #define OFFSET 700
-/* _DEFAULT_SOURCE exposes DT_REG/DT_DIR/DT_LNK/DT_UNKNOWN in <dirent.h> */
-#ifndef _DEFAULT_SOURCE
-#define _DEFAULT_SOURCE
-#endif
+#include <assert.h>
 #include <ctype.h>
 #include <dirent.h>
 #include <stdbool.h>
@@ -428,21 +425,23 @@ static inline bool is_space(char c)
 }
 
 /*
- * scan_for_end: manual scan for a short block-end marker (e.g. star-slash).
- * Replaces strstr() inside the hot in_block path.  Because block-end tokens
- * are always short we use memchr on the first character and memcmp for the
- * rest -- much cheaper than a general strstr.
+ * scan_for_end: scan [p, line_end) for a short block-end marker.
+ * Uses memchr on the first character and memcmp for the rest — much cheaper
+ * than strstr.  Bounded by line_end so we never scan past the current line.
  */
-static bool scan_for_end(const char* p, const char* end, size_t end_len)
+static bool scan_for_end(const char* p, const char* line_end, const char* end,
+ size_t end_len)
 {
 	char first = end[0];
-	while (*p) {
+	while (p < line_end) {
 		const char* found = (const char*) memchr(p, (unsigned char) first,
-		 strlen(p));
+		 (size_t) (line_end - p));
 		if (!found) {
 			return false;
 		}
-		if (memcmp(found, end, end_len) == 0) {
+		/* Need end_len bytes starting at found; check they fit. */
+		if ((size_t) (line_end - found) >= end_len &&
+		 memcmp(found, end, end_len) == 0) {
 			return true;
 		}
 		p = found + 1;
@@ -469,9 +468,7 @@ static Counts count_file(const char* path, int lang_idx)
 		fclose(f);
 		return c;
 	}
-	rewind(f);
-
-	if (file_len == 0) {
+	if (fseek(f, 0, SEEK_SET) != 0) {
 		fclose(f);
 		return c;
 	}
@@ -483,6 +480,9 @@ static Counts count_file(const char* path, int lang_idx)
 	}
 	size_t nread = fread(buf, 1, (size_t) file_len, f);
 	fclose(f);
+	/* fread() returns at most the requested count; assert gives the static
+	 * analyzer a provable upper bound so it can verify buf[nread] is safe. */
+	assert(nread <= (size_t) file_len);
 	buf[nread] = '\0';
 
 	Language* l = (lang_idx >= 0) ? &g_langs[lang_idx] : NULL;
@@ -494,7 +494,7 @@ static Counts count_file(const char* path, int lang_idx)
 
 	while (cur < file_end) {
 		/* Find end of this line. */
-		char* lf = (char*) memchr(cur, '\n', (size_t)(file_end - cur));
+		char* lf = (char*) memchr(cur, '\n', (size_t) (file_end - cur));
 		char* line_end = lf ? lf : file_end;
 
 		/* Temporarily NUL-terminate so string functions work on this line. */
@@ -518,7 +518,7 @@ static Counts count_file(const char* path, int lang_idx)
 
 				if (in_block) {
 					is_comment = true;
-					if (scan_for_end(p, l->block_end[block_idx],
+					if (scan_for_end(p, line_end, l->block_end[block_idx],
 					     l->block_end_lens[block_idx])) {
 						in_block = false;
 					}
@@ -540,9 +540,8 @@ static Counts count_file(const char* path, int lang_idx)
 							 strncmp(p, l->block_start[i],
 							  l->block_start_lens[i]) == 0) {
 								is_comment = true;
-								if (!scan_for_end(
-								     p + l->block_start_lens[i],
-								     l->block_end[i],
+								if (!scan_for_end(p + l->block_start_lens[i],
+								     line_end, l->block_end[i],
 								     l->block_end_lens[i])) {
 									in_block = true;
 									block_idx = i;
@@ -673,24 +672,24 @@ static void walk_dir(const char* path)
 		 * we fall back to process_path() which calls lstat().
 		 */
 		switch (entry->d_type) {
-			case DT_REG:
-				process_file(sub);
-				break;
-			case DT_DIR:
-				if (g_recurse) {
-					walk_dir(sub);
-				}
-				break;
-			case DT_LNK:
-				/* Symlinks are always skipped to prevent loops. */
-				break;
-			case DT_UNKNOWN:
-				/* Fall back to lstat() for file systems without d_type. */
-				process_path(sub);
-				break;
-			default:
-				/* Ignore devices, sockets, FIFOs, etc. */
-				break;
+		case DT_REG:
+			process_file(sub);
+			break;
+		case DT_DIR:
+			if (g_recurse) {
+				walk_dir(sub);
+			}
+			break;
+		case DT_LNK:
+			/* Symlinks are always skipped to prevent loops. */
+			break;
+		case DT_UNKNOWN:
+			/* Fall back to lstat() for file systems without d_type. */
+			process_path(sub);
+			break;
+		default:
+			/* Ignore devices, sockets, FIFOs, etc. */
+			break;
 		}
 	}
 	closedir(d);
@@ -703,14 +702,18 @@ typedef struct {
 } LangSum;
 
 /* Comparator: sort by total lines descending for the summary table. */
-static int lang_sum_cmp(const void* a, const void* b)
+static int lang_sum_cmp(const void* lang_sum_a, const void* lang_sum_b)
 {
-	const LangSum* la = (const LangSum*) a;
-	const LangSum* lb = (const LangSum*) b;
+	const LangSum* la = (const LangSum*) lang_sum_a;
+	const LangSum* lb = (const LangSum*) lang_sum_b;
 	long total_a = la->counts.code + la->counts.comment + la->counts.blank;
 	long total_b = lb->counts.code + lb->counts.comment + lb->counts.blank;
-	if (total_b > total_a) return 1;
-	if (total_b < total_a) return -1;
+	if (total_b > total_a) {
+		return 1;
+	}
+	if (total_b < total_a) {
+		return -1;
+	}
 	return 0;
 }
 
