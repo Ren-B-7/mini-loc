@@ -12,6 +12,9 @@ Built with speed in mind, `mini-loc` handles massive codebases in sub-second tim
 | **Node.js** | ~0.5 seconds |
 | **Ladybird** | ~0.1 seconds |
 | **Rust** | ~0.3 seconds |
+| **Vscode** | ~0.5 seconds |
+| **Pi-hole** | ~0.01 seconds |
+
 
 ![Performance Breakdowns Linux + Rust](Linux_and_Rust_index.png)
 ![Performance Breakdowns Ladybird + Node](Ladybird_and_Node_index.png)
