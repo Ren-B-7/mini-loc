@@ -102,7 +102,6 @@ static bool g_list_unknown = false;
 static bool g_verbose = false;
 static char* g_filter = NULL;
 
-static long g_skipped_compressed = 0;
 static long g_skipped_media = 0;
 static long g_special_files = 0;
 
@@ -427,16 +426,16 @@ static Counts count_file(const char* path, int lang_idx)
 	bool in_block = false;
 	int block_idx = -1;
 	while (fgets(line, sizeof(line), f)) {
+		if (lang_idx == -1) {
+			c.code++;
+			continue;
+		}
 		char* p = line;
 		while (*p && is_space(*p)) {
 			p++;
 		}
 		if (!*p) {
 			c.blank++;
-			continue;
-		}
-		if (lang_idx == -1) {
-			c.code++;
 			continue;
 		}
 		Language* l = &g_langs[lang_idx];
@@ -480,16 +479,6 @@ static Counts count_file(const char* path, int lang_idx)
 }
 
 static void walk_dir(const char* path);
-
-static int is_compressed(const char* ext)
-{
-	if (!ext) {
-		return 0;
-	}
-	return (strcmp(ext, ".gz") == 0 || strcmp(ext, ".zst") == 0 ||
-	 strcmp(ext, ".br") == 0 || strcmp(ext, ".zip") == 0 ||
-	 strcmp(ext, ".snapshots") == 0);
-}
 
 static int is_media(const char* ext)
 {
@@ -546,10 +535,6 @@ static void process_path(const char* path)
 	const char* ext = strrchr(path, '.');
 
 	if (!S_ISREG(st.st_mode) || is_ignored_extension(ext)) {
-		return;
-	}
-	if (is_compressed(ext)) {
-		g_skipped_compressed++;
 		return;
 	}
 	if (is_media(ext)) {
