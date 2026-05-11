@@ -2,14 +2,61 @@
   {
     "name": "config",
     "ignored_extensions": [
-      ".zip",
-      ".br",
-      ".gz",
-      ".png",
+      ".7z",
+      ".a",
+      ".apk",
+      ".avi",
+      ".bin",
+      ".bmp",
+      ".bz2",
+      ".class",
+      ".cur",
+      ".deb",
+      ".dll",
+      ".dmg",
+      ".doc",
+      ".docx",
+      ".eot",
+      ".exe",
+      ".flac",
+      ".flv",
+      ".gif",
+      ".ico",
+      ".iso",
+      ".jar",
       ".jpeg",
       ".jpg",
+      ".lib",
+      ".lock",
+      ".m4a",
+      ".mkv",
+      ".mov",
+      ".mp3",
+      ".mp4",
+      ".o",
+      ".obj",
+      ".ogg",
+      ".otf",
+      ".pdf",
+      ".phar",
+      ".png",
+      ".pyc",
+      ".pyd",
+      ".pyo",
+      ".rar",
+      ".so",
+      ".sqlite",
+      ".tar",
+      ".tif",
+      ".tiff",
+      ".ttf",
+      ".wav",
       ".webm",
       ".webp",
+      ".woff",
+      ".woff2",
+      ".xz",
+      ".zip",
       ".zst"
     ]
   },
@@ -29,7 +76,7 @@
   },
   {
     "name": "Python",
-    "extensions": ["py", "pyw", "pyx", "pyc", "pyd"],
+    "extensions": ["py", "pyw", "pyx"],
     "line_comments": ["#"],
     "block_comments": [
       ["\"\"\"", "\"\"\""],
@@ -353,7 +400,7 @@
   },
   {
     "name": "Web Assembly Binary",
-    "extensions": ["wat"],
+    "extensions": ["wasm"],
     "line_comments": [],
     "block_comments": [[]],
     "data_only": false
@@ -368,13 +415,6 @@
   {
     "name": "Web Assembly Interface",
     "extensions": ["wit"],
-    "line_comments": ["//"],
-    "block_comments": [["/*", "*/"]],
-    "data_only": false
-  },
-  {
-    "name": "Verilog",
-    "extensions": ["v", "vh"],
     "line_comments": ["//"],
     "block_comments": [["/*", "*/"]],
     "data_only": false
@@ -402,7 +442,7 @@
   },
   {
     "name": "Text",
-    "extensions": ["txt", "LICENSE", "COPYING", "README"],
+    "extensions": ["txt"],
     "line_comments": [],
     "block_comments": [],
     "data_only": true
@@ -478,13 +518,6 @@
     "extensions": ["adb", "ads"],
     "line_comments": ["--"],
     "block_comments": [],
-    "data_only": false
-  },
-  {
-    "name": "MATLAB",
-    "extensions": ["m"],
-    "line_comments": ["%"],
-    "block_comments": [["%{", "%}"]],
     "data_only": false
   },
   {
@@ -573,9 +606,420 @@
   },
   {
     "name": "Bazel",
-    "extensions": ["bzl", "BUILD", "WORKSPACE"],
+    "extensions": ["bzl"],
     "line_comments": ["#"],
     "block_comments": [],
     "data_only": false
-  }
+  },
+  [
+    {
+      "name": "Protocol Buffers",
+      "extensions": ["proto"],
+      "line_comments": ["//"],
+      "block_comments": [["/*", "*/"]],
+      "data_only": true
+    },
+    {
+      "name": "Thrift",
+      "extensions": ["thrift"],
+      "line_comments": ["//", "#"],
+      "block_comments": [["/*", "*/"]],
+      "data_only": true
+    },
+    {
+      "name": "Cap'n Proto",
+      "extensions": ["capnp"],
+      "line_comments": ["#"],
+      "block_comments": [],
+      "data_only": true
+    },
+    {
+      "name": "FlatBuffers",
+      "extensions": ["fbs"],
+      "line_comments": ["//"],
+      "block_comments": [["/*", "*/"]],
+      "data_only": true
+    },
+    {
+      "name": "GraphQL",
+      "extensions": ["graphql", "gql"],
+      "line_comments": ["#"],
+      "block_comments": [["\"\"\"", "\"\"\""]],
+      "data_only": true
+    },
+    {
+      "name": "OpenCL",
+      "extensions": ["cl"],
+      "line_comments": ["//"],
+      "block_comments": [["/*", "*/"]],
+      "data_only": false
+    },
+    {
+      "name": "CUDA",
+      "extensions": ["cu", "cuh"],
+      "line_comments": ["//"],
+      "block_comments": [["/*", "*/"]],
+      "data_only": false
+    },
+    {
+      "name": "GLSL",
+      "extensions": ["glsl", "vert", "frag", "geom", "comp", "tesc", "tese"],
+      "line_comments": ["//"],
+      "block_comments": [["/*", "*/"]],
+      "data_only": false
+    },
+    {
+      "name": "HLSL",
+      "extensions": ["hlsl", "fx", "fxh"],
+      "line_comments": ["//"],
+      "block_comments": [["/*", "*/"]],
+      "data_only": false
+    },
+    {
+      "name": "WGSL",
+      "extensions": ["wgsl"],
+      "line_comments": ["//"],
+      "block_comments": [["/*", "*/"]],
+      "data_only": false
+    },
+    {
+      "name": "Metal",
+      "extensions": ["metal"],
+      "line_comments": ["//"],
+      "block_comments": [["/*", "*/"]],
+      "data_only": false
+    },
+    {
+      "name": "SystemVerilog",
+      "extensions": ["sv", "svh"],
+      "line_comments": ["//"],
+      "block_comments": [["/*", "*/"]],
+      "data_only": false
+    },
+    {
+      "name": "QML",
+      "extensions": ["qml"],
+      "line_comments": ["//"],
+      "block_comments": [["/*", "*/"]],
+      "data_only": false
+    },
+    {
+      "name": "Qt UI",
+      "extensions": ["ui"],
+      "line_comments": [],
+      "block_comments": [["<!--", "-->"]],
+      "data_only": true
+    },
+    {
+      "name": "XAML",
+      "extensions": ["xaml"],
+      "line_comments": [],
+      "block_comments": [["<!--", "-->"]],
+      "data_only": true
+    },
+    {
+      "name": "Rescript",
+      "extensions": ["res", "resi"],
+      "line_comments": ["//"],
+      "block_comments": [["/*", "*/"]],
+      "data_only": false
+    },
+    {
+      "name": "Elm",
+      "extensions": ["elm"],
+      "line_comments": ["--"],
+      "block_comments": [["{-", "-}"]],
+      "data_only": false
+    },
+    {
+      "name": "PureScript",
+      "extensions": ["purs"],
+      "line_comments": ["--"],
+      "block_comments": [["{-", "-}"]],
+      "data_only": false
+    },
+    {
+      "name": "Lean",
+      "extensions": ["lean"],
+      "line_comments": ["--"],
+      "block_comments": [["/-", "-/"]],
+      "data_only": false
+    },
+    {
+      "name": "Coq",
+      "extensions": ["v"],
+      "line_comments": [],
+      "block_comments": [["(*", "*)"]],
+      "data_only": false
+    },
+    {
+      "name": "Agda",
+      "extensions": ["agda"],
+      "line_comments": ["--"],
+      "block_comments": [["{-", "-}"]],
+      "data_only": false
+    },
+    {
+      "name": "Idris",
+      "extensions": ["idr"],
+      "line_comments": ["--"],
+      "block_comments": [["{-", "-}"]],
+      "data_only": false
+    },
+    {
+      "name": "Solidity",
+      "extensions": ["sol"],
+      "line_comments": ["//"],
+      "block_comments": [["/*", "*/"]],
+      "data_only": false
+    },
+    {
+      "name": "Move",
+      "extensions": ["move"],
+      "line_comments": ["//"],
+      "block_comments": [["/*", "*/"]],
+      "data_only": false
+    },
+    {
+      "name": "YARA",
+      "extensions": ["yar", "yara"],
+      "line_comments": ["//"],
+      "block_comments": [["/*", "*/"]],
+      "data_only": false
+    },
+    {
+      "name": "Apache",
+      "extensions": ["htaccess"],
+      "line_comments": ["#"],
+      "block_comments": [],
+      "data_only": true
+    },
+    {
+      "name": "NGINX",
+      "extensions": ["nginx"],
+      "line_comments": ["#"],
+      "block_comments": [],
+      "data_only": true
+    },
+    {
+      "name": "EditorConfig",
+      "extensions": ["editorconfig"],
+      "line_comments": ["#", ";"],
+      "block_comments": [],
+      "data_only": true
+    },
+    {
+      "name": "Properties",
+      "extensions": ["properties"],
+      "line_comments": ["#", "!"],
+      "block_comments": [],
+      "data_only": true
+    },
+    {
+      "name": "CSV",
+      "extensions": ["csv"],
+      "line_comments": [],
+      "block_comments": [],
+      "data_only": true
+    },
+    {
+      "name": "TSV",
+      "extensions": ["tsv"],
+      "line_comments": [],
+      "block_comments": [],
+      "data_only": true
+    },
+    {
+      "name": "TSX",
+      "extensions": ["tsx"],
+      "line_comments": ["//"],
+      "block_comments": [["/*", "*/"]],
+      "data_only": false
+    },
+    {
+      "name": "JSX",
+      "extensions": ["jsx"],
+      "line_comments": ["//"],
+      "block_comments": [["/*", "*/"]],
+      "data_only": false
+    },
+    {
+      "name": "Astro",
+      "extensions": ["astro"],
+      "line_comments": ["//"],
+      "block_comments": [
+        ["<!--", "-->"],
+        ["/*", "*/"]
+      ],
+      "data_only": false
+    },
+    {
+      "name": "Handlebars",
+      "extensions": ["hbs", "handlebars"],
+      "line_comments": [],
+      "block_comments": [["{{!--", "--}}"]],
+      "data_only": false
+    },
+    {
+      "name": "Mustache",
+      "extensions": ["mustache"],
+      "line_comments": [],
+      "block_comments": [["{{!", "}}"]],
+      "data_only": false
+    },
+    {
+      "name": "Jinja",
+      "extensions": ["j2", "jinja", "jinja2"],
+      "line_comments": [["{#", "#}"]],
+      "block_comments": [["{#", "#}"]],
+      "data_only": false
+    },
+    {
+      "name": "Twig",
+      "extensions": ["twig"],
+      "line_comments": [],
+      "block_comments": [["{#", "#}"]],
+      "data_only": false
+    },
+    {
+      "name": "Pug",
+      "extensions": ["pug"],
+      "line_comments": ["//"],
+      "block_comments": [],
+      "data_only": false
+    },
+    {
+      "name": "HAML",
+      "extensions": ["haml"],
+      "line_comments": ["-#"],
+      "block_comments": [],
+      "data_only": false
+    },
+    {
+      "name": "Makefile",
+      "extensions": ["mk", "mak"],
+      "line_comments": ["#"],
+      "block_comments": [],
+      "data_only": false
+    },
+    {
+      "name": "Just",
+      "extensions": ["just"],
+      "line_comments": ["#"],
+      "block_comments": [],
+      "data_only": false
+    },
+    {
+      "name": "PKGBUILD",
+      "extensions": ["PKGBUILD"],
+      "line_comments": ["#"],
+      "block_comments": [],
+      "data_only": false
+    },
+    {
+      "name": "Gentoo Ebuild",
+      "extensions": ["ebuild", "eclass"],
+      "line_comments": ["#"],
+      "block_comments": [],
+      "data_only": false
+    },
+    {
+      "name": "Patch",
+      "extensions": ["patch", "diff"],
+      "line_comments": [],
+      "block_comments": [],
+      "data_only": false
+    },
+    {
+      "name": "reStructuredText",
+      "extensions": ["rst"],
+      "line_comments": [],
+      "block_comments": [],
+      "data_only": true
+    },
+    {
+      "name": "Org",
+      "extensions": ["org"],
+      "line_comments": ["#"],
+      "block_comments": [],
+      "data_only": true
+    },
+    {
+      "name": "AsciiDoc",
+      "extensions": ["adoc", "asciidoc"],
+      "line_comments": ["//"],
+      "block_comments": [],
+      "data_only": true
+    },
+    {
+      "name": "BibTeX",
+      "extensions": ["bib"],
+      "line_comments": ["%"],
+      "block_comments": [],
+      "data_only": true
+    },
+    {
+      "name": "Typst",
+      "extensions": ["typ"],
+      "line_comments": ["//"],
+      "block_comments": [["/*", "*/"]],
+      "data_only": false
+    },
+    {
+      "name": "Cue",
+      "extensions": ["cue"],
+      "line_comments": ["//"],
+      "block_comments": [["/*", "*/"]],
+      "data_only": true
+    },
+    {
+      "name": "KDL",
+      "extensions": ["kdl"],
+      "line_comments": ["//"],
+      "block_comments": [["/*", "*/"]],
+      "data_only": true
+    },
+    {
+      "name": "RON",
+      "extensions": ["ron"],
+      "line_comments": ["//"],
+      "block_comments": [["/*", "*/"]],
+      "data_only": true
+    },
+    {
+      "name": "HJSON",
+      "extensions": ["hjson"],
+      "line_comments": ["//", "#"],
+      "block_comments": [["/*", "*/"]],
+      "data_only": true
+    },
+    {
+      "name": "Dhall",
+      "extensions": ["dhall"],
+      "line_comments": ["--"],
+      "block_comments": [["{-", "-}"]],
+      "data_only": true
+    },
+    {
+      "name": "SML",
+      "extensions": ["sml", "sig", "fun"],
+      "line_comments": [],
+      "block_comments": [["(*", "*)"]],
+      "data_only": false
+    },
+    {
+      "name": "Hack",
+      "extensions": ["hack"],
+      "line_comments": ["//", "#"],
+      "block_comments": [["/*", "*/"]],
+      "data_only": false
+    },
+    {
+      "name": "Vale",
+      "extensions": ["vale"],
+      "line_comments": ["//"],
+      "block_comments": [["/*", "*/"]],
+      "data_only": false
+    }
+  ]
 ]
