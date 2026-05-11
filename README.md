@@ -42,7 +42,7 @@ make uninstall
 Point the program at a directory to begin indexing:
 
 ```bash
-./bin/loc /path/to/codebase
+./bin/loc -r /path/to/codebase
 ```
 
 ## License
