@@ -2,15 +2,21 @@
 TARGET_NAME = loc
 BUILD_DIR = build
 BIN_DIR = bin
-EXECUTABLE = $(BIN_DIR)/$(TARGET_NAME)
+EXECUTABLE_SINGLE = $(BIN_DIR)/$(TARGET_NAME)-single
+EXECUTABLE_MULTI = $(BIN_DIR)/$(TARGET_NAME)-multi
 
 # Source files
-SRCS = src/mini-loc.c src/include/set.c
+SRCS_SINGLE = src/mini-loc-single.c src/include/set.c
+SRCS_MULTI = src/mini-loc-multi.c src/include/set.c
+SRCS_ALL = $(SRCS_SINGLE) src/mini-loc-multi.c
+
 # Header files
-HDRS = src/include/minicli.h src/include/set.h
+HDRS = src/include/minicli.h src/include/set.h src/include/languages_data.h
 
 # Object files (placed in build/ directory)
-OBJS = $(BUILD_DIR)/mini-loc.o $(BUILD_DIR)/set.o
+OBJS_COMMON = $(BUILD_DIR)/set.o
+OBJ_SINGLE = $(BUILD_DIR)/mini-loc-single.o
+OBJ_MULTI = $(BUILD_DIR)/mini-loc-multi.o
 
 # Compiler
 CC = gcc
@@ -79,16 +85,20 @@ OPTFLAGS = -O3 -march=native -flto
 ALL_CFLAGS = $(CFLAGS) $(HARDENING) $(OPTFLAGS) -pthread
 
 # Targets
-.PHONY: all clean run format lint directories install uninstall build-json
+.PHONY: all clean run format lint directories install uninstall build-json single multi
 
-all: format lint directories build-json $(EXECUTABLE)
+all: format lint directories build-json single multi
 
 # Create output directories if they don't exist
 directories:
 	@mkdir -p $(BIN_DIR) $(BUILD_DIR)
 
-# Rule to compile .c files into .o files in the build/ directory
-$(BUILD_DIR)/mini-loc.o: src/mini-loc.c
+# Rules to compile .c files into .o files in the build/ directory
+$(BUILD_DIR)/mini-loc-single.o: src/mini-loc-single.c
+	@echo "Compiling $< ..."
+	$(CC) $(ALL_CFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/mini-loc-multi.o: src/mini-loc-multi.c
 	@echo "Compiling $< ..."
 	$(CC) $(ALL_CFLAGS) -c $< -o $@
 
@@ -96,10 +106,18 @@ $(BUILD_DIR)/set.o: src/include/set.c
 	@echo "Compiling $< ..."
 	$(CC) $(ALL_CFLAGS) -c $< -o $@
 
-# Rule to link the executable in the bin/ directory
-$(EXECUTABLE): $(OBJS)
+# Rules to link the executables in the bin/ directory
+single: directories build-json $(EXECUTABLE_SINGLE)
+
+$(EXECUTABLE_SINGLE): $(OBJ_SINGLE) $(OBJS_COMMON)
 	@echo "Linking $@ ..."
-	$(CC) $(ALL_CFLAGS) $(LDFLAGS) -o $(EXECUTABLE) $(OBJS) -lm -pthread
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) -o $@ $^ -lm -pthread
+
+multi: directories build-json $(EXECUTABLE_MULTI)
+
+$(EXECUTABLE_MULTI): $(OBJ_MULTI) $(OBJS_COMMON)
+	@echo "Linking $@ ..."
+	$(CC) $(ALL_CFLAGS) $(LDFLAGS) -o $@ $^ -lm -pthread
 
 build-json:
 	@echo "Creating language header"
@@ -111,15 +129,15 @@ clean:
 	@echo "Cleaning up build artifacts..."
 	@rm -rf $(BUILD_DIR) $(BIN_DIR)
 
-# Rule to run the executable
-run: $(EXECUTABLE)
-	@echo "Running $(EXECUTABLE) ..."
-	./$(EXECUTABLE)
+# Rule to run the executable (defaults to multi)
+run: multi
+	@echo "Running $(EXECUTABLE_MULTI) ..."
+	./$(EXECUTABLE_MULTI)
 
 # Format code using clang-format
 format:
 	@echo "Formatting code..."
-	@clang-format -style=file:./.clang-format -i $(SRCS) $(HDRS)
+	@clang-format -style=file:./.clang-format -i $(SRCS_ALL) $(HDRS)
 	mbake format --config ./.bake.toml Makefile
 
 # Run static analysis with clang-tidy
@@ -128,18 +146,39 @@ CLANG_TIDY_FLAGS = -std=c99 -pedantic -Wall -Wextra -Isrc -Isrc/include -D_XOPEN
 
 lint:
 	@echo "Running static analysis..."
-	@clang-tidy $(CLANG_TIDY_CHECKS) $(SRCS) -- $(CLANG_TIDY_FLAGS)
+	@clang-tidy $(CLANG_TIDY_CHECKS) $(SRCS_ALL) -- $(CLANG_TIDY_FLAGS)
 	mbake validate --config ./.bake.toml Makefile
 
 # Installation directories
 INSTALL_DIR = $(HOME)/.local/bin
 
 # Install and uninstall targets
-install: $(EXECUTABLE)
-	@echo "Installing $(TARGET_NAME) to $(INSTALL_DIR)..."
+install: single multi
+	@echo "Select version to install as '$(TARGET_NAME)':"
+	@echo "1) Multi-threaded"
+	@echo "2) Single-threaded"
+	@printf "Choice [1-2]: "; \
+	read choice; \
+	if [ "$$choice" = "1" ]; then \
+		$(MAKE) install-multi; \
+	elif [ "$$choice" = "2" ]; then \
+		$(MAKE) install-single; \
+	else \
+		echo "Invalid choice. Aborting."; \
+		exit 1; \
+	fi
+
+install-multi: multi
+	@echo "Installing multi-threaded version to $(INSTALL_DIR)..."
 	@install -d $(INSTALL_DIR)
-	@install -m 755 $(EXECUTABLE) $(INSTALL_DIR)/$(TARGET_NAME)
-	@echo "$(TARGET_NAME) installed successfully."
+	@install -m 755 $(EXECUTABLE_MULTI) $(INSTALL_DIR)/$(TARGET_NAME)
+	@echo "$(TARGET_NAME) installed successfully (multi-threaded)."
+
+install-single: single
+	@echo "Installing single-threaded version to $(INSTALL_DIR)..."
+	@install -d $(INSTALL_DIR)
+	@install -m 755 $(EXECUTABLE_SINGLE) $(INSTALL_DIR)/$(TARGET_NAME)
+	@echo "$(TARGET_NAME) installed successfully (single-threaded)."
 
 uninstall:
 	@echo "Uninstalling $(TARGET_NAME) from $(INSTALL_DIR)..."
