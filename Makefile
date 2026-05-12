@@ -87,7 +87,7 @@ ALL_CFLAGS = $(CFLAGS) $(HARDENING) $(OPTFLAGS) -pthread
 # Targets
 .PHONY: all clean run format lint directories install uninstall build-json single multi
 
-all: format lint directories build-json single multi
+all: build-json format lint directories single multi
 
 # Create output directories if they don't exist
 directories:
