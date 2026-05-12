@@ -92,7 +92,7 @@ static void build_lookup_table(void);
 static int find_language(LangLookupParams params);
 static bool is_ignored_extension(const char* ext);
 static Counts count_file(const char* path, int lang_idx);
-static void process_file_local(ThreadState* ts, const char* path);
+static void process_file_local(ThreadState* ts, char* path);
 static void walk_dir(const char* path, WorkQueue* queue);
 static void process_path_producer(const char* path, WorkQueue* queue);
 static int wq_init(WorkQueue* q, size_t initial_cap);
@@ -461,7 +461,7 @@ static Counts count_file(const char* path, int lang_idx)
 		fclose(f);
 		return c;
 	}
-	char* buf = (char*) calloc(buf_size, 1);
+	char* buf = (char*) malloc(buf_size);
 	if (!buf) {
 		fclose(f);
 		return c;
@@ -488,9 +488,6 @@ static Counts count_file(const char* path, int lang_idx)
 			break;
 		}
 
-		char saved = buf[line_end_off];
-		buf[line_end_off] = '\0';
-
 		if (l == NULL) {
 			c.code++;
 		} else {
@@ -512,9 +509,10 @@ static Counts count_file(const char* path, int lang_idx)
 					}
 				} else {
 					for (int i = 0; i < l->n_line_comments; i++) {
-						if (p[0] == l->line_comments[i][0] &&
-						 strncmp(p, l->line_comments[i],
-						  l->line_comment_lens[i]) == 0) {
+						size_t clen = l->line_comment_lens[i];
+						if ((size_t) (line_end - p) >= clen &&
+						 p[0] == l->line_comments[i][0] &&
+						 memcmp(p, l->line_comments[i], clen) == 0) {
 							is_comment = true;
 							break;
 						}
@@ -522,13 +520,13 @@ static Counts count_file(const char* path, int lang_idx)
 
 					if (!is_comment) {
 						for (int i = 0; i < l->n_block_comments; i++) {
-							if (p[0] == l->block_start[i][0] &&
-							 strncmp(p, l->block_start[i],
-							  l->block_start_lens[i]) == 0) {
+							size_t clen = l->block_start_lens[i];
+							if ((size_t) (line_end - p) >= clen &&
+							 p[0] == l->block_start[i][0] &&
+							 memcmp(p, l->block_start[i], clen) == 0) {
 								is_comment = true;
-								if (!scan_for_end(p + l->block_start_lens[i],
-								     line_end, l->block_end[i],
-								     l->block_end_lens[i])) {
+								if (!scan_for_end(p + clen, line_end,
+								     l->block_end[i], l->block_end_lens[i])) {
 									in_block = true;
 									block_idx = i;
 								}
@@ -546,7 +544,6 @@ static Counts count_file(const char* path, int lang_idx)
 			}
 		}
 
-		buf[line_end_off] = saved;
 		cur = lf ? lf + 1 : file_end;
 	}
 
@@ -558,16 +555,18 @@ static Counts count_file(const char* path, int lang_idx)
  * Per-thread file processing — appends to the thread's private FileResult
  * array.  No locks needed; nothing shared is written here.
  * ========================================================================= */
-static void process_file_local(ThreadState* ts, const char* path)
+static void process_file_local(ThreadState* ts, char* path)
 {
 	const char* ext = strrchr(path, '.');
 
 	if (is_ignored_extension(ext)) {
+		free(path);
 		return;
 	}
 
 	int li = find_language((LangLookupParams) {path, ext});
 	if (li == -1 && !g_list_unknown) {
+		free(path);
 		return;
 	}
 
@@ -577,6 +576,7 @@ static void process_file_local(ThreadState* ts, const char* path)
 		FileResult* tmp = (FileResult*) realloc(ts->files,
 		 sizeof(FileResult) * (size_t) new_cap);
 		if (!tmp) {
+			free(path);
 			return;
 		}
 		ts->files = tmp;
@@ -584,10 +584,18 @@ static void process_file_local(ThreadState* ts, const char* path)
 	}
 
 	FileResult* fr = &ts->files[ts->n_files++];
-	fr->path = strdup(path);
-	fr->ext = ext ? strdup(ext) : NULL;
+
 	fr->lang_idx = li;
 	fr->counts = count_file(path, li);
+
+	if (g_show_files) {
+		fr->path = strdup(path);
+		fr->ext = ext ? strdup(ext) : NULL;
+	} else {
+		fr->path = NULL;
+		fr->ext = NULL;
+		free(path);
+	}
 }
 
 /* =========================================================================
@@ -724,7 +732,6 @@ static void* worker_thread(void* arg)
 			break; /* queue drained and finished */
 		}
 		process_file_local(ts, path);
-		free(path);
 	}
 	return NULL;
 }
@@ -929,7 +936,7 @@ static void cb_append(int argc, char** argv, void* user_data)
 int main(int argc, char** argv)
 {
 	/* Use a larger buffer for stdout to speed up printing. */
-	char stdout_buf[65536];
+	static char stdout_buf[65536];
 	setvbuf(stdout, stdout_buf, _IOFBF, sizeof(stdout_buf));
 
 	/* --- Language initialisation (single-threaded, before any workers) --- */

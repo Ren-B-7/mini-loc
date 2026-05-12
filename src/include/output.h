@@ -79,28 +79,27 @@ typedef enum {
  *   verbose    — whether the extension column should be shown (terminal / HTML)
  */
 static inline void loc_print_report(LocOutputFormat fmt,
- const void* files,              /* FileResult* — cast inside each formatter */
- int n_files, const void* langs, /* Language* — cast inside each formatter */
- int n_langs, bool show_files, bool verbose);
+ const FileResult* files, int n_files, const Language* langs, int n_langs,
+ bool show_files, bool verbose);
 
 /* Individual formatters — all static inline so they are inlined into the
  * single compilation unit that #includes this header, producing zero link-time
  * symbol conflicts between single and multi. */
-static void loc_print_json(const void* files, int n_files, const void* langs,
- int n_langs, bool show_files);
-static inline void loc_print_html(const void* files, int n_files,
- const void* langs, int n_langs, bool show_files, bool verbose);
-static void loc_print_sql(const void* files, int n_files, const void* langs,
- int n_langs, bool show_files);
-static inline void loc_print_terminal(const void* files, int n_files,
- const void* langs, int n_langs, bool show_files, bool verbose);
+static void loc_print_json(const FileResult* files, int n_files,
+ const Language* langs, int n_langs, bool show_files);
+static inline void loc_print_html(const FileResult* files, int n_files,
+ const Language* langs, int n_langs, bool show_files, bool verbose);
+static void loc_print_sql(const FileResult* files, int n_files,
+ const Language* langs, int n_langs, bool show_files);
+static inline void loc_print_terminal(const FileResult* files, int n_files,
+ const Language* langs, int n_langs, bool show_files, bool verbose);
 
 /* Internal helpers */
 
 /* Build the per-language summary table from a flat FileResult array.
  * Returns the number of entries written into out_sums (≤ max_sums).
  * Also writes grand totals into *t_files, *t_code, *t_comm, *t_blank. */
-static int loc__build_sums(const void* files_v, int n_files, int n_langs,
+static int loc__build_sums(const FileResult* files_v, int n_files, int n_langs,
  LocLangSum* out_sums, int max_sums, long* t_files, long* t_code, long* t_comm,
  long* t_blank);
 
@@ -214,28 +213,17 @@ static inline void loc__iso8601_now(char* buf, size_t len)
 #define LOC_TERM_YELLOW "\033[33m"
 #define LOC_TERM_GRAY "\033[90m"
 
-#define LOC__FR(arr, i) ((const FileResult*) (arr) + (i))
-#define LOC__FR_PATH(arr, i) (LOC__FR(arr, i)->path)
-#define LOC__FR_EXT(arr, i) (LOC__FR(arr, i)->ext)
-#define LOC__FR_LANGIDX(arr, i) (LOC__FR(arr, i)->lang_idx)
-#define LOC__FR_CODE(arr, i) (LOC__FR(arr, i)->counts.code)
-#define LOC__FR_COMMENT(arr, i) (LOC__FR(arr, i)->counts.comment)
-#define LOC__FR_BLANK(arr, i) (LOC__FR(arr, i)->counts.blank)
-
-#define LOC__LANG(arr, i) ((const Language*) (arr) + (i))
-#define LOC__LANG_NAME(arr, i) (LOC__LANG(arr, i)->name)
-
 /* Build summary table */
 
-static int loc__build_sums(const void* files_v, int num_files, int num_langs,
- LocLangSum* out_sums, int max_sums, long* t_files, long* t_code, long* t_comm,
- long* t_blank)
+static int loc__build_sums(const FileResult* files_v, int num_files,
+ int num_langs, LocLangSum* out_sums, int max_sums, long* t_files, long* t_code,
+ long* t_comm, long* t_blank)
 {
 	/* lang_to_sum_idx maps (lang_idx+1) → position in out_sums.
 	 * Using a stack array since MAX_LANGS is small. */
 	int map_size = num_langs + 2; /* +1 for the sentinel, +1 for unknown(-1) */
 	int lang_to_sum[MAX_LANGS + 2];
-	if (map_size > (int)(sizeof(lang_to_sum) / sizeof(int))) {
+	if (map_size > (int) (sizeof(lang_to_sum) / sizeof(int))) {
 		return 0;
 	}
 	for (int i = 0; i < map_size; i++) {
@@ -246,7 +234,7 @@ static int loc__build_sums(const void* files_v, int num_files, int num_langs,
 	*t_files = *t_code = *t_comm = *t_blank = 0;
 
 	for (int i = 0; i < num_files; i++) {
-		int li = LOC__FR_LANGIDX(files_v, i);
+		int li = (files_v + i)->lang_idx;
 		int map_idx = li + 1; /* -1 → 0, 0 → 1, … */
 		if (map_idx < 0 || map_idx >= map_size) {
 			continue;
@@ -266,9 +254,9 @@ static int loc__build_sums(const void* files_v, int num_files, int num_langs,
 			lang_to_sum[map_idx] = found;
 		}
 		out_sums[found].files++;
-		out_sums[found].counts.code += LOC__FR_CODE(files_v, i);
-		out_sums[found].counts.comment += LOC__FR_COMMENT(files_v, i);
-		out_sums[found].counts.blank += LOC__FR_BLANK(files_v, i);
+		out_sums[found].counts.code += (files_v + i)->counts.code;
+		out_sums[found].counts.comment += (files_v + i)->counts.comment;
+		out_sums[found].counts.blank += (files_v + i)->counts.blank;
 	}
 
 	qsort(out_sums, (size_t) n_sums, sizeof(LocLangSum), loc__sum_cmp);
@@ -286,8 +274,8 @@ static int loc__build_sums(const void* files_v, int num_files, int num_langs,
  * JSON formatter
  */
 
-static void loc_print_json(const void* files_v, int n_files,
- const void* langs_v, int n_langs, bool show_files)
+static void loc_print_json(const FileResult* files_v, int n_files,
+ const Language* langs_v, int n_langs, bool show_files)
 {
 #define MAX_SUMS_JSON 1024
 	LocLangSum sums[MAX_SUMS_JSON];
@@ -306,7 +294,7 @@ static void loc_print_json(const void* files_v, int n_files,
 	for (int i = 0; i < n_sums; i++) {
 		const char* name = (sums[i].lang_idx == -1) ?
 		 "(unknown)" :
-		 LOC__LANG_NAME(langs_v, sums[i].lang_idx);
+		 (langs_v + sums[i].lang_idx)->name;
 		loc__json_escape(name, esc, sizeof(esc));
 		long total =
 		 sums[i].counts.code + sums[i].counts.comment + sums[i].counts.blank;
@@ -343,20 +331,19 @@ static void loc_print_json(const void* files_v, int n_files,
 	if (show_files && n_files > 0) {
 		printf(",\n  \"files\": [\n");
 		for (int i = 0; i < n_files; i++) {
-			const char* path = LOC__FR_PATH(files_v, i);
-			const char* ext = LOC__FR_EXT(files_v, i);
-			int li = LOC__FR_LANGIDX(files_v, i);
-			const char* lang = (li >= 0 && li < n_langs) ?
-			 LOC__LANG_NAME(langs_v, li) :
-			 "(unknown)";
+			const char* path = (files_v + i)->path;
+			const char* ext = (files_v + i)->ext;
+			int li = (files_v + i)->lang_idx;
+			const char* lang =
+			 (li >= 0 && li < n_langs) ? (langs_v + li)->name : "(unknown)";
 
 			char esc_path[4096], esc_lang[128];
 			loc__json_escape(path ? path : "", esc_path, sizeof(esc_path));
 			loc__json_escape(lang, esc_lang, sizeof(esc_lang));
 
-			long code = LOC__FR_CODE(files_v, i);
-			long comment = LOC__FR_COMMENT(files_v, i);
-			long blank = LOC__FR_BLANK(files_v, i);
+			long code = (files_v + i)->counts.code;
+			long comment = (files_v + i)->counts.comment;
+			long blank = (files_v + i)->counts.blank;
 			long total = code + comment + blank;
 
 			printf(
@@ -383,14 +370,14 @@ static void loc_print_json(const void* files_v, int n_files,
  * HTML formatter
  */
 
-static inline void loc_print_html(const void* files_v, int n_files,
- const void* langs_v, int n_langs, bool show_files, bool verbose)
+static inline void loc_print_html(const FileResult* files_v, int n_files,
+ const Language* langs_v, int n_langs, bool show_files, bool verbose)
 {
 	(void) verbose;
 
 #define MAX_SUMS_HTML 1024
 
-	LocLangSum* sums = calloc(MAX_SUMS_HTML, sizeof(LocLangSum));
+	LocLangSum* sums = (LocLangSum*) calloc(MAX_SUMS_HTML, sizeof(LocLangSum));
 
 	if (!sums) {
 		return;
@@ -428,7 +415,7 @@ static inline void loc_print_html(const void* files_v, int n_files,
 	for (int i = 0; i < n_sums; i++) {
 		const char* name = (sums[i].lang_idx == -1) ?
 		 "(unknown)" :
-		 LOC__LANG_NAME(langs_v, sums[i].lang_idx);
+		 (langs_v + sums[i].lang_idx)->name;
 
 		loc__html_escape(name, esc, sizeof(esc));
 
@@ -483,11 +470,11 @@ static inline void loc_print_html(const void* files_v, int n_files,
 		 "<tbody>\n");
 
 		for (int i = 0; i < n_files; i++) {
-			const char* path = LOC__FR_PATH(files_v, i);
+			const char* path = (files_v + i)->path;
 
-			long code = LOC__FR_CODE(files_v, i);
-			long comment = LOC__FR_COMMENT(files_v, i);
-			long blank = LOC__FR_BLANK(files_v, i);
+			long code = (files_v + i)->counts.code;
+			long comment = (files_v + i)->counts.comment;
+			long blank = (files_v + i)->counts.blank;
 
 			long total = code + comment + blank;
 
@@ -518,8 +505,8 @@ static inline void loc_print_html(const void* files_v, int n_files,
  * SQL formatter
  */
 
-static void loc_print_sql(const void* files_v, int n_files, const void* langs_v,
- int n_langs, bool show_files)
+static void loc_print_sql(const FileResult* files_v, int n_files,
+ const Language* langs_v, int n_langs, bool show_files)
 {
 #define MAX_SUMS_SQL 1024
 	LocLangSum sums[MAX_SUMS_SQL];
@@ -570,7 +557,7 @@ static void loc_print_sql(const void* files_v, int n_files, const void* langs_v,
 	for (int i = 0; i < n_sums; i++) {
 		const char* name = (sums[i].lang_idx == -1) ?
 		 "(unknown)" :
-		 LOC__LANG_NAME(langs_v, sums[i].lang_idx);
+		 (langs_v + sums[i].lang_idx)->name;
 		loc__sql_escape(name, esc, sizeof(esc));
 		long total =
 		 sums[i].counts.code + sums[i].counts.comment + sums[i].counts.blank;
@@ -590,21 +577,20 @@ static void loc_print_sql(const void* files_v, int n_files, const void* langs_v,
 	if (show_files && n_files > 0) {
 		printf("-- Per-file results\n");
 		for (int i = 0; i < n_files; i++) {
-			const char* path = LOC__FR_PATH(files_v, i);
-			const char* ext = LOC__FR_EXT(files_v, i);
-			int li = LOC__FR_LANGIDX(files_v, i);
-			const char* lang = (li >= 0 && li < n_langs) ?
-			 LOC__LANG_NAME(langs_v, li) :
-			 "(unknown)";
+			const char* path = (files_v + i)->path;
+			const char* ext = (files_v + i)->ext;
+			int li = (files_v + i)->lang_idx;
+			const char* lang =
+			 (li >= 0 && li < n_langs) ? (langs_v + li)->name : "(unknown)";
 
 			char esc_path[4096], esc_ext[64], esc_lang[128];
 			loc__sql_escape(path ? path : "", esc_path, sizeof(esc_path));
 			loc__sql_escape(ext ? ext : "", esc_ext, sizeof(esc_ext));
 			loc__sql_escape(lang, esc_lang, sizeof(esc_lang));
 
-			long code = LOC__FR_CODE(files_v, i);
-			long comment = LOC__FR_COMMENT(files_v, i);
-			long blank = LOC__FR_BLANK(files_v, i);
+			long code = (files_v + i)->counts.code;
+			long comment = (files_v + i)->counts.comment;
+			long blank = (files_v + i)->counts.blank;
 			long total = code + comment + blank;
 
 			printf("INSERT INTO loc_files"
@@ -622,8 +608,8 @@ static void loc_print_sql(const void* files_v, int n_files, const void* langs_v,
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
-static inline void loc_print_terminal(const void* files_v, int n_files,
- const void* langs_v, int n_langs, bool show_files, bool verbose)
+static inline void loc_print_terminal(const FileResult* files_v, int n_files,
+ const Language* langs_v, int n_langs, bool show_files, bool verbose)
 {
 #define MAX_SUMS_TERM 1024
 
@@ -632,7 +618,7 @@ static inline void loc_print_terminal(const void* files_v, int n_files,
 		return;
 	}
 
-	LocLangSum* sums = calloc(MAX_SUMS_TERM, sizeof(LocLangSum));
+	LocLangSum* sums = (LocLangSum*) calloc(MAX_SUMS_TERM, sizeof(LocLangSum));
 
 	if (!sums) {
 		return;
@@ -660,20 +646,19 @@ static inline void loc_print_terminal(const void* files_v, int n_files,
 		}
 
 		for (int i = 0; i < n_files; i++) {
-			long code = LOC__FR_CODE(files_v, i);
-			long comment = LOC__FR_COMMENT(files_v, i);
-			long blank = LOC__FR_BLANK(files_v, i);
+			long code = (files_v + i)->counts.code;
+			long comment = (files_v + i)->counts.comment;
+			long blank = (files_v + i)->counts.blank;
 
 			long total = code + comment + blank;
 
 			if (verbose) {
-				printf("%-45s %-10s %9ld %9ld %9ld %9ld\n",
-				 LOC__FR_PATH(files_v, i),
-				 LOC__FR_EXT(files_v, i) ? LOC__FR_EXT(files_v, i) : "", code,
-				 comment, blank, total);
+				printf("%-45s %-10s %9ld %9ld %9ld %9ld\n", (files_v + i)->path,
+				 (files_v + i)->ext ? (files_v + i)->ext : "", code, comment,
+				 blank, total);
 			} else {
-				printf("%-55s %9ld %9ld %9ld %9ld\n", LOC__FR_PATH(files_v, i),
-				 code, comment, blank, total);
+				printf("%-55s %9ld %9ld %9ld %9ld\n", (files_v + i)->path, code,
+				 comment, blank, total);
 			}
 		}
 
@@ -695,7 +680,7 @@ static inline void loc_print_terminal(const void* files_v, int n_files,
 
 		const char* name =
 		 (sums[i].lang_idx >= 0 && sums[i].lang_idx < n_langs) ?
-		 LOC__LANG_NAME(langs_v, sums[i].lang_idx) :
+		 (langs_v + sums[i].lang_idx)->name :
 		 "(unknown)";
 
 		printf(
@@ -724,8 +709,9 @@ static inline void loc_print_terminal(const void* files_v, int n_files,
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
-static inline void loc_print_report(LocOutputFormat fmt, const void* files,
- int n_files, const void* langs, int n_langs, bool show_files, bool verbose)
+static inline void loc_print_report(LocOutputFormat fmt,
+ const FileResult* files, int n_files, const Language* langs, int n_langs,
+ bool show_files, bool verbose)
 {
 	switch (fmt) {
 	case LOC_FMT_JSON:
@@ -747,15 +733,6 @@ static inline void loc_print_report(LocOutputFormat fmt, const void* files,
 }
 
 /* ── Cleanup macros ── */
-#undef LOC__FR
-#undef LOC__FR_PATH
-#undef LOC__FR_EXT
-#undef LOC__FR_LANGIDX
-#undef LOC__FR_CODE
-#undef LOC__FR_COMMENT
-#undef LOC__FR_BLANK
-#undef LOC__LANG
-#undef LOC__LANG_NAME
 #undef LOC_TERM_RESET
 #undef LOC_TERM_CYAN
 #undef LOC_TERM_GREEN
