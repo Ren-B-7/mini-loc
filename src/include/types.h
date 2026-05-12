@@ -9,6 +9,7 @@
 #ifndef LOC_TYPES_H
 #define LOC_TYPES_H
 
+#include <cstdint>
 #include <stdbool.h>
 #include <stddef.h>
 
@@ -26,9 +27,9 @@
 #define MAX_FILE_SIZE (1024L * 1024L)
 
 typedef struct {
-	long code;
-	long comment;
-	long blank;
+	uint32_t code;
+	uint32_t comment;
+	uint32_t blank;
 } Counts;
 
 typedef struct {
