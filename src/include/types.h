@@ -26,6 +26,7 @@
 #define PATH_BUF 4096
 #define MAX_FILE_SIZE (1024L * 1024L)
 
+/* 12 Bytes instead of 24 */
 typedef struct {
 	uint32_t code;
 	uint32_t comment;
@@ -47,11 +48,15 @@ typedef struct {
 	char extensions[32][32];
 } Language;
 
+/* ext becomes const because it wont change retroactively */
+/* Counts is now down to 12 bytes from 24, this changes the setup such that
+ * lang_idx can be after counts and fills in the memory location causing us to
+ * not need an extra 8 bytes of offset */
 typedef struct {
 	char* path;
-	char* ext;
-	int lang_idx;
+	const char* ext;
 	Counts counts;
+	int lang_idx;
 } FileResult;
 
 typedef struct {
