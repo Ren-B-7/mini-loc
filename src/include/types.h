@@ -56,12 +56,14 @@ typedef struct {
 	char* path;
 	const char* ext;
 	Counts counts;
-	int lang_idx;
+	int32_t lang_idx;
 } FileResult;
 
+/* Doesnt have to be int, make it defined, might make it unsigned later and
+ * ensure we never use -1, then we can go down to uint16_t */
 typedef struct {
 	char ext[MAX_EXT_LEN];
-	int lang_idx;
+	int32_t lang_idx;
 } ExtEntry;
 
 typedef struct {
