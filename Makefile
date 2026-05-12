@@ -175,7 +175,7 @@ format:
 	@echo "mbake"
 	@mbake format --config ./.bake.toml Makefile
 	@echo "black"
-	@black ./assets/convert_langs.py
+	@black -q ./assets/convert_langs.py
 	@echo "Formatting done"
 
 # Run static analysis with clang-tidy
