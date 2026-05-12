@@ -2,6 +2,7 @@
 TARGET_NAME = loc
 BUILD_DIR = build
 BIN_DIR = bin
+PROFILE_DIR = profiles
 EXECUTABLE_SINGLE = $(BIN_DIR)/$(TARGET_NAME)-single
 EXECUTABLE_MULTI = $(BIN_DIR)/$(TARGET_NAME)-multi
 
@@ -85,9 +86,27 @@ OPTFLAGS = -O3 -march=native -flto
 ALL_CFLAGS = $(CFLAGS) $(HARDENING) $(OPTFLAGS) -pthread
 
 # Targets
-.PHONY: all clean run format lint directories install uninstall build-json single multi
+.PHONY: all clean run format lint directories install uninstall build-json single multi pgo-gen optimized
 
 all: build-json format lint directories single multi
+
+# PGO Targets
+pgo-gen: build-json format lint clean directories
+	@echo "Building with profile generation..."
+	$(MAKE) ALL_CFLAGS="$(ALL_CFLAGS) -fprofile-generate" LDFLAGS="$(LDFLAGS) -fprofile-generate"
+	@mkdir $(PROFILE_DIR)
+	@echo "Run the binaries (e.g., './bin/loc-multi -r .') to generate profile data,"
+	@echo "then copy it to the 'profiles/' directory: 'mkdir -p profiles && cp build/*.gcda profiles/'"
+
+optimized: clean directories
+	@echo "Building with profile usage..."
+	@if [ -d $(PROFILE_DIR) ]; then \
+		cp $(PROFILE_DIR)/*.gcda $(BUILD_DIR)/; \
+	else \
+		echo "Error: 'profiles/' directory not found. Run 'make pgo-gen' first."; \
+		exit 1; \
+	fi
+	$(MAKE) ALL_CFLAGS="$(ALL_CFLAGS) -fprofile-use" LDFLAGS="$(LDFLAGS) -fprofile-use"
 
 # Create output directories if they don't exist
 directories:
@@ -107,13 +126,13 @@ $(BUILD_DIR)/set.o: src/include/set.c
 	$(CC) $(ALL_CFLAGS) -c $< -o $@
 
 # Rules to link the executables in the bin/ directory
-single: directories build-json $(EXECUTABLE_SINGLE)
+single: directories build-json format $(EXECUTABLE_SINGLE)
 
 $(EXECUTABLE_SINGLE): $(OBJ_SINGLE) $(OBJS_COMMON)
 	@echo "Linking $@ ..."
 	$(CC) $(ALL_CFLAGS) $(LDFLAGS) -o $@ $^ -lm -pthread
 
-multi: directories build-json $(EXECUTABLE_MULTI)
+multi: directories build-json format $(EXECUTABLE_MULTI)
 
 $(EXECUTABLE_MULTI): $(OBJ_MULTI) $(OBJS_COMMON)
 	@echo "Linking $@ ..."
@@ -127,7 +146,7 @@ build-json:
 # Rule to clean up build artifacts
 clean:
 	@echo "Cleaning up build artifacts..."
-	@rm -rf $(BUILD_DIR) $(BIN_DIR)
+	@rm -rf $(BUILD_DIR) $(BIN_DIR) $(PROFILE_DIR)
 
 # Rule to run the executable (defaults to multi)
 run: multi
