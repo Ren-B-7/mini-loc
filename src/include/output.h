@@ -232,13 +232,15 @@ static int loc__build_sums(const void* files_v, int num_files, int num_langs,
  long* t_blank)
 {
 	/* lang_to_sum_idx maps (lang_idx+1) → position in out_sums.
-	 * We allocate on the heap to avoid VLA / large stack frames. */
+	 * Using a stack array since MAX_LANGS is small. */
 	int map_size = num_langs + 2; /* +1 for the sentinel, +1 for unknown(-1) */
-	int* lang_to_sum = (int*) malloc((size_t) map_size * sizeof(int));
-	if (!lang_to_sum) {
+	int lang_to_sum[MAX_LANGS + 2];
+	if (map_size > (int)(sizeof(lang_to_sum) / sizeof(int))) {
 		return 0;
 	}
-	memset(lang_to_sum, -1, (size_t) map_size * sizeof(int));
+	for (int i = 0; i < map_size; i++) {
+		lang_to_sum[i] = -1;
+	}
 
 	int n_sums = 0;
 	*t_files = *t_code = *t_comm = *t_blank = 0;
@@ -268,7 +270,6 @@ static int loc__build_sums(const void* files_v, int num_files, int num_langs,
 		out_sums[found].counts.comment += LOC__FR_COMMENT(files_v, i);
 		out_sums[found].counts.blank += LOC__FR_BLANK(files_v, i);
 	}
-	free(lang_to_sum);
 
 	qsort(out_sums, (size_t) n_sums, sizeof(LocLangSum), loc__sum_cmp);
 

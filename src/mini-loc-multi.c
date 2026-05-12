@@ -928,6 +928,10 @@ static void cb_append(int argc, char** argv, void* user_data)
  * ========================================================================= */
 int main(int argc, char** argv)
 {
+	/* Use a larger buffer for stdout to speed up printing. */
+	char stdout_buf[65536];
+	setvbuf(stdout, stdout_buf, _IOFBF, sizeof(stdout_buf));
+
 	/* --- Language initialisation (single-threaded, before any workers) --- */
 	set_init(&g_ignored_set);
 	g_ignored_set_ready = true;
