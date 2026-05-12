@@ -464,7 +464,7 @@ static Counts count_file(const char* path, int lang_idx)
 		return c;
 	}
 	long file_len = ftell(f);
-	if (file_len < 0) {
+	if (file_len < 0 || file_len >= MAX_FILE_SIZE) {
 		fclose(f);
 		return c;
 	}
@@ -473,17 +473,21 @@ static Counts count_file(const char* path, int lang_idx)
 		return c;
 	}
 
-	char* buf = (char*) malloc((size_t) file_len + 1);
+	size_t buf_size = (size_t) file_len + 1;
+	if (buf_size == 0) {
+		fclose(f);
+		return c;
+	}
+	char* buf = (char*) calloc(buf_size, 1);
 	if (!buf) {
 		fclose(f);
 		return c;
 	}
 	size_t nread = fread(buf, 1, (size_t) file_len, f);
 	fclose(f);
-	/* fread() returns at most the requested count; assert gives the static
-	 * analyzer a provable upper bound so it can verify buf[nread] is safe. */
-	assert(nread <= (size_t) file_len);
-	buf[nread] = '\0';
+	if (nread >= buf_size) {
+		nread = buf_size - 1;
+	}
 
 	Language* l = (lang_idx >= 0) ? &g_langs[lang_idx] : NULL;
 	bool in_block = false;
@@ -497,9 +501,13 @@ static Counts count_file(const char* path, int lang_idx)
 		char* lf = (char*) memchr(cur, '\n', (size_t) (file_end - cur));
 		char* line_end = lf ? lf : file_end;
 
-		/* Temporarily NUL-terminate so string functions work on this line. */
-		char saved = *line_end;
-		*line_end = '\0';
+		size_t line_end_off = (size_t) (line_end - buf);
+		if (line_end_off >= buf_size) {
+			break;
+		}
+
+		char saved = buf[line_end_off];
+		buf[line_end_off] = '\0';
 
 		if (l == NULL) {
 			/* Unknown language: count everything as code. */
@@ -561,7 +569,7 @@ static Counts count_file(const char* path, int lang_idx)
 		}
 
 		/* Restore the byte we stomped and advance past the newline. */
-		*line_end = saved;
+		buf[line_end_off] = saved;
 		cur = lf ? lf + 1 : file_end;
 	}
 

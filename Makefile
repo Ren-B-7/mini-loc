@@ -141,7 +141,7 @@ format:
 	mbake format --config ./.bake.toml Makefile
 
 # Run static analysis with clang-tidy
-CLANG_TIDY_CHECKS = -checks=-*,bugprone-*,clang-analyzer-*
+CLANG_TIDY_CHECKS = -checks=-*,bugprone-*,clang-analyzer-*,performance-*
 CLANG_TIDY_FLAGS = -std=c99 -pedantic -Wall -Wextra -Isrc -Isrc/include -D_XOPEN_SOURCE=700 -D_DEFAULT_SOURCE
 
 lint:
