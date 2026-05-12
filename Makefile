@@ -94,6 +94,8 @@ ALL_LDFLAGS = $(LDFLAGS) $(PGO_FLAGS)
 # Targets
 .PHONY: all clean run format lint check directories install uninstall build-json single multi pgo-gen optimized
 
+default: single multi
+
 all: check build-json directories single multi
 
 # Analysis and Formatting
@@ -139,15 +141,6 @@ $(BUILD_DIR)/mini-loc-multi.o: src/mini-loc-multi.c src/include/languages_data.h
 $(BUILD_DIR)/set.o: src/include/set.c
 	@echo "Compiling $< ..."
 	$(CC) $(ALL_CFLAGS) -c $< -o $@
-
-# Rules to link the executables in the bin/ directory
-single: $(OBJ_SINGLE) $(OBJS_COMMON)
-	@echo "Linking $(EXECUTABLE_SINGLE) ..."
-	$(CC) $(ALL_CFLAGS) $(ALL_LDFLAGS) -o $(EXECUTABLE_SINGLE) $^ -lm -pthread
-
-multi: $(OBJ_MULTI) $(OBJS_COMMON)
-	@echo "Linking $(EXECUTABLE_MULTI) ..."
-	$(CC) $(ALL_CFLAGS) $(ALL_LDFLAGS) -o $(EXECUTABLE_MULTI) $^ -lm -pthread
 
 build-json: src/include/languages_data.h
 
