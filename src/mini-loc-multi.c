@@ -329,11 +329,14 @@ static void load_languages(const unsigned char* data, size_t len, bool append)
 			}
 			if (!is_config) {
 				for (int i = 0; i < temp.n_line_comments; i++) {
-					temp.line_comment_lens[i] = strlen(temp.line_comments[i]);
+					temp.line_comment_lens[i] =
+					 (uint8_t) strlen(temp.line_comments[i]);
 				}
 				for (int i = 0; i < temp.n_block_comments; i++) {
-					temp.block_start_lens[i] = strlen(temp.block_start[i]);
-					temp.block_end_lens[i] = strlen(temp.block_end[i]);
+					temp.block_start_lens[i] =
+					 (uint8_t) strlen(temp.block_start[i]);
+					temp.block_end_lens[i] =
+					 (uint8_t) strlen(temp.block_end[i]);
 				}
 				g_langs[g_n_langs++] = temp;
 			}

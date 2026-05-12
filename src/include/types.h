@@ -33,19 +33,25 @@ typedef struct {
 	uint32_t blank;
 } Counts;
 
+/* Reordered the struct to be by cache and with slightly better alignment */
 typedef struct {
-	size_t line_comment_lens[8];
-	size_t block_start_lens[8];
-	size_t block_end_lens[8];
-	int n_extensions;
-	int n_line_comments;
-	int n_block_comments;
+	char name[MAX_LANG_NAME_LEN];
+
+	int32_t n_extensions;
+	int32_t n_line_comments;
+	int32_t n_block_comments;
+
 	bool data_only;
-	char name[32];
-	char line_comments[8][16];
-	char block_start[8][16];
-	char block_end[8][16];
-	char extensions[32][32];
+
+	char line_comments[MAX_LINE_COMMENTS][MAX_COMMENT_LEN];
+	char block_start[MAX_BLOCK_COMMENTS][MAX_COMMENT_LEN];
+	char block_end[MAX_BLOCK_COMMENTS][MAX_COMMENT_LEN];
+	char extensions[MAX_EXTENSIONS][MAX_EXT_LEN];
+
+	uint8_t line_comment_lens[MAX_LINE_COMMENTS];
+	uint8_t block_start_lens[MAX_BLOCK_COMMENTS];
+	uint8_t block_end_lens[MAX_BLOCK_COMMENTS];
+
 } Language;
 
 /* ext becomes const because it wont change retroactively */

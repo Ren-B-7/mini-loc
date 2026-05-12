@@ -342,10 +342,10 @@ static void loc_print_json(const FileResult* files_v, int n_files,
 			loc__json_escape(path ? path : "", esc_path, sizeof(esc_path));
 			loc__json_escape(lang, esc_lang, sizeof(esc_lang));
 
-			long code = (files_v + i)->counts.code;
-			long comment = (files_v + i)->counts.comment;
-			long blank = (files_v + i)->counts.blank;
-			long total = code + comment + blank;
+			uint32_t code = (files_v + i)->counts.code;
+			uint32_t comment = (files_v + i)->counts.comment;
+			uint32_t blank = (files_v + i)->counts.blank;
+			uint32_t total = code + comment + blank;
 
 			printf(
 			 "    {\n"
@@ -355,7 +355,7 @@ static void loc_print_json(const FileResult* files_v, int n_files,
 			 "      \"code\": %" PRIu32 ",\n"
 			 "      \"comment\": %" PRIu32 ",\n"
 			 "      \"blank\": %" PRIu32 ",\n"
-			 "      \"total\": %ld\n"
+			 "      \"total\": %" PRIu32 "\n"
 			 "    }%s\n",
 			 esc_path, ext ? ext : "", esc_lang, code, comment, blank, total,
 			 (i < n_files - 1) ? "," : "");
@@ -473,11 +473,11 @@ static inline void loc_print_html(const FileResult* files_v, int n_files,
 		for (int i = 0; i < n_files; i++) {
 			const char* path = (files_v + i)->path;
 
-			long code = (files_v + i)->counts.code;
-			long comment = (files_v + i)->counts.comment;
-			long blank = (files_v + i)->counts.blank;
+			uint32_t code = (files_v + i)->counts.code;
+			uint32_t comment = (files_v + i)->counts.comment;
+			uint32_t blank = (files_v + i)->counts.blank;
 
-			long total = code + comment + blank;
+			uint32_t total = code + comment + blank;
 
 			loc__html_escape(path ? path : "", esc, sizeof(esc));
 
@@ -487,7 +487,7 @@ static inline void loc_print_html(const FileResult* files_v, int n_files,
 			 "<td>%" PRIu32 "</td>"
 			 "<td>%" PRIu32 "</td>"
 			 "<td>%" PRIu32 "</td>"
-			 "<td>%ld</td>"
+			 "<td>%" PRIu32 "</td>"
 			 "</tr>\n",
 			 esc, code, comment, blank, total);
 		}
@@ -589,14 +589,14 @@ static void loc_print_sql(const FileResult* files_v, int n_files,
 			loc__sql_escape(ext ? ext : "", esc_ext, sizeof(esc_ext));
 			loc__sql_escape(lang, esc_lang, sizeof(esc_lang));
 
-			long code = (files_v + i)->counts.code;
-			long comment = (files_v + i)->counts.comment;
-			long blank = (files_v + i)->counts.blank;
-			long total = code + comment + blank;
+			uint32_t code = (files_v + i)->counts.code;
+			uint32_t comment = (files_v + i)->counts.comment;
+			uint32_t blank = (files_v + i)->counts.blank;
+			uint32_t total = code + comment + blank;
 
 			printf("INSERT INTO loc_files"
 			       " (run_id, path, ext, language, code, comment, blank, total)"
-			       " VALUES ('%s', '%s', '%s', '%s', %" PRIu32 ", %" PRIu32 ", %" PRIu32 ", %ld);\n",
+			       " VALUES ('%s', '%s', '%s', '%s', %" PRIu32 ", %" PRIu32 ", %" PRIu32 ", %" PRIu32 ");\n",
 			 ts, esc_path, esc_ext, esc_lang, code, comment, blank, total);
 		}
 		printf("\n");
