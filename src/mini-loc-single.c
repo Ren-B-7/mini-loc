@@ -718,138 +718,6 @@ static void walk_dir(const char* path)
 	closedir(d);
 }
 
-typedef struct {
-	int lang_idx;
-	int files;
-	Counts counts;
-} LangSum;
-
-/* Comparator: sort by total lines descending for the summary table. */
-static int lang_sum_cmp(const void* lang_sum_a, const void* lang_sum_b)
-{
-	const LangSum* la = (const LangSum*) lang_sum_a;
-	const LangSum* lb = (const LangSum*) lang_sum_b;
-	long total_a = la->counts.code + la->counts.comment + la->counts.blank;
-	long total_b = lb->counts.code + lb->counts.comment + lb->counts.blank;
-	if (total_b > total_a) {
-		return 1;
-	}
-	if (total_b < total_a) {
-		return -1;
-	}
-	return 0;
-}
-
-static void print_report_terminal(void)
-{
-	if (g_n_files == 0) {
-		printf("mini-loc: no files processed.\n");
-		return;
-	}
-
-	if (g_show_files) {
-		printf("\n %sPer-File Results%s \n", ANSI_CYAN, ANSI_RESET);
-		if (g_verbose) {
-			printf("%-45s %-10s %9s %9s %9s %9s\n", "File", "Ext", "Code",
-			 "Comment", "Blank", "Total");
-			printf("-----------------------------------------------------------"
-			       "----"
-			       "-------------------------------------------\n");
-			for (int i = 0; i < g_n_files; i++) {
-				FileResult* fr = &g_files[i];
-				long total =
-				 fr->counts.code + fr->counts.comment + fr->counts.blank;
-				printf("%-45s %-10s %9ld %9ld %9ld %9ld\n", fr->path,
-				 fr->ext ? fr->ext : "", fr->counts.code, fr->counts.comment,
-				 fr->counts.blank, total);
-			}
-		} else {
-			printf("%-55s %9s %9s %9s %9s\n", "File", "Code", "Comment",
-			 "Blank", "Total");
-			printf("-----------------------------------------------------------"
-			       "----"
-			       "---------------------------\n");
-			for (int i = 0; i < g_n_files; i++) {
-				FileResult* fr = &g_files[i];
-				long total =
-				 fr->counts.code + fr->counts.comment + fr->counts.blank;
-				printf("%-55s %9ld %9ld %9ld %9ld\n", fr->path, fr->counts.code,
-				 fr->counts.comment, fr->counts.blank, total);
-			}
-		}
-		printf("\n");
-	}
-
-	LangSum sums[MAX_LANGS + 1];
-	int n_sums = 0;
-	int lang_to_sum_idx[MAX_LANGS + 1];
-	memset(lang_to_sum_idx, -1, sizeof(lang_to_sum_idx));
-
-	for (int i = 0; i < g_n_files; i++) {
-		int li = g_files[i].lang_idx;
-		int map_idx = li + 1; /* Map -1 to 0, 0 to 1, etc. */
-		int found = lang_to_sum_idx[map_idx];
-		if (found == -1) {
-			found = n_sums++;
-			sums[found].lang_idx = li;
-			sums[found].files = 0;
-			sums[found].counts = (Counts) {0, 0, 0};
-			lang_to_sum_idx[map_idx] = found;
-		}
-		sums[found].files++;
-		sums[found].counts.code += g_files[i].counts.code;
-		sums[found].counts.comment += g_files[i].counts.comment;
-		sums[found].counts.blank += g_files[i].counts.blank;
-	}
-
-	long t_files = 0, t_code = 0, t_comm = 0, t_blank = 0;
-	for (int i = 0; i < n_sums; i++) {
-		t_files += sums[i].files;
-		t_code += sums[i].counts.code;
-		t_comm += sums[i].counts.comment;
-		t_blank += sums[i].counts.blank;
-	}
-	long grand_total = t_code + t_comm + t_blank;
-
-	qsort(sums, (size_t) n_sums, sizeof(LangSum), lang_sum_cmp);
-
-	printf("\n %sLanguage Summary%s \n", ANSI_CYAN, ANSI_RESET);
-	printf("%-22s %7s %10s %7s %10s %10s %10s\n", "Language", "Files", "Code",
-	 "Pct", "Comment", "Blank", "Total");
-	printf("-------------------------------------------------------------------"
-	       "-------------\n");
-
-	for (int i = 0; i < n_sums; i++) {
-		long total =
-		 sums[i].counts.code + sums[i].counts.comment + sums[i].counts.blank;
-		const char* name = (sums[i].lang_idx == -1) ?
-		 "(unknown)" :
-		 g_langs[sums[i].lang_idx].name;
-		double pct = (grand_total > 0) ?
-		 (100.0 * (double) total / (double) grand_total) :
-		 0.0;
-		printf("%-22s %7d %s%10ld%s %7.1f%% %s%10ld%s %s%10ld%s %10ld\n", name,
-		 sums[i].files, ANSI_GREEN, sums[i].counts.code, ANSI_RESET, pct,
-		 ANSI_YELLOW, sums[i].counts.comment, ANSI_RESET, ANSI_GRAY,
-		 sums[i].counts.blank, ANSI_RESET, total);
-	}
-	printf("-------------------------------------------------------------------"
-	       "-------------\n");
-	printf("%-22s %7ld %10ld %7.1f%% %10ld %10ld %10ld\n", "TOTAL", t_files,
-	 t_code, 100.0, t_comm, t_blank, grand_total);
-
-	if (grand_total > 0) {
-		double c_pct = 100.0 * (double) t_code / (double) grand_total;
-		double m_pct = 100.0 * (double) t_comm / (double) grand_total;
-		double b_pct = 100.0 * (double) t_blank / (double) grand_total;
-		printf("\nBreakdown: %sCode %.1f%%%s | %sComment %.1f%%%s | %sBlank "
-		       "%.1f%%%s\n",
-		 ANSI_GREEN, c_pct, ANSI_RESET, ANSI_YELLOW, m_pct, ANSI_RESET,
-		 ANSI_GRAY, b_pct, ANSI_RESET);
-	}
-	putchar('\n');
-}
-
 static void cb_output_fmt(int argc, char** argv, void* user_data)
 {
 	if (argc > 0) {
@@ -1055,12 +923,8 @@ int main(int argc, char** argv)
 			process_path(".");
 		}
 	}
-	if (g_output_fmt == LOC_FMT_TERMINAL) {
-		print_report_terminal();
-	} else {
-		loc_print_report(g_output_fmt, g_files, g_n_files, g_langs, g_n_langs,
-		 g_show_files, g_verbose);
-	}
+	loc_print_report(g_output_fmt, g_files, g_n_files, g_langs, g_n_langs,
+	 g_show_files, g_verbose);
 	cli_destroy(&parser);
 	set_destroy(&g_ignored_set);
 	return 0;

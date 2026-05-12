@@ -132,32 +132,33 @@ typedef enum {
  *   verbose    — whether the extension column should be shown (terminal / HTML)
  */
 static inline void loc_print_report(LocOutputFormat fmt,
- const void* files,              /* FileResult*  — cast inside each formatter */
- int n_files, const void* langs, /* Language*    — cast inside each formatter */
+ const void* files,              /* FileResult* — cast inside each formatter */
+ int n_files, const void* langs, /* Language* — cast inside each formatter */
  int n_langs, bool show_files, bool verbose);
 
 /* Individual formatters — all static inline so they are inlined into the
  * single compilation unit that #includes this header, producing zero link-time
  * symbol conflicts between single and multi. */
-static inline void loc_print_json(const void* files, int n_files,
- const void* langs, int n_langs, bool show_files);
+static void loc_print_json(const void* files, int n_files, const void* langs,
+ int n_langs, bool show_files);
 static inline void loc_print_html(const void* files, int n_files,
  const void* langs, int n_langs, bool show_files, bool verbose);
-static inline void loc_print_sql(const void* files, int n_files,
- const void* langs, int n_langs, bool show_files);
+static void loc_print_sql(const void* files, int n_files, const void* langs,
+ int n_langs, bool show_files);
+static inline void loc_print_terminal(const void* files, int n_files,
+ const void* langs, int n_langs, bool show_files, bool verbose);
 
-/* ── Internal helpers
- * ────────────────────────────────────────────────────────*/
+/* Internal helpers */
 
 /* Build the per-language summary table from a flat FileResult array.
  * Returns the number of entries written into out_sums (≤ max_sums).
  * Also writes grand totals into *t_files, *t_code, *t_comm, *t_blank. */
-static inline int loc__build_sums(const void* files_v, int n_files, int n_langs,
+static int loc__build_sums(const void* files_v, int n_files, int n_langs,
  LocLangSum* out_sums, int max_sums, long* t_files, long* t_code, long* t_comm,
  long* t_blank);
 
 /* qsort comparator — sort by total descending */
-static int loc__sum_cmp(const void* a, const void* b)
+static inline int loc__sum_cmp(const void* a, const void* b)
 {
 	const LocLangSum* la = (const LocLangSum*) a;
 	const LocLangSum* lb = (const LocLangSum*) b;
@@ -166,7 +167,7 @@ static int loc__sum_cmp(const void* a, const void* b)
 	return (tb > ta) ? 1 : (tb < ta) ? -1 : 0;
 }
 
-/* Escape a string for JSON: replace " → \" and \ → \\ in-place into buf. */
+/* Escape a string for JSON: replace " -> \" and \ -> \\ in-place into buf. */
 static inline void loc__json_escape(const char* src, char* buf, size_t len)
 {
 	size_t j = 0;
@@ -213,7 +214,7 @@ static inline void loc__html_escape(const char* src, char* buf, size_t len)
 	buf[j] = '\0';
 }
 
-/* SQL single-quote escaping: replace ' → '' (ANSI SQL standard). */
+/* SQL single-quote escaping: replace ' -> '' (ANSI SQL standard). */
 static inline void loc__sql_escape(const char* src, char* buf, size_t len)
 {
 	size_t j = 0;
@@ -239,14 +240,33 @@ static inline void loc__iso8601_now(char* buf, size_t len)
 	}
 }
 
-/* ── FileResult field accessors ──────────────────────────────────────────────
- *
- * Because FileResult is defined in the .c file we access its fields through
- * the typed pointer once it is visible.  When included inside the .c files
- * the full struct definition precedes this header, so the casts are valid.
- *
- * If you ever move FileResult to a shared header you can remove these macros.
- */
+/* HTML helpers */
+#define LOC_HTML_HEADER \
+	"<!DOCTYPE html>\n" \
+	"<html lang=\"en\">\n" \
+	"<head>\n" \
+	"<meta charset=\"utf-8\">\n" \
+	"<title>mini-loc</title>\n" \
+	"<style>\n" \
+	"body{font-family:monospace;margin:20px;}\n" \
+	"table{border-collapse:collapse;}\n" \
+	"th,td{border:1px solid #ccc;padding:4px 8px;text-align:right;}\n" \
+	"th:first-child,td:first-child{text-align:left;}\n" \
+	"</style>\n" \
+	"</head>\n" \
+	"<body>\n"
+
+#define LOC_HTML_FOOTER \
+	"</body>\n" \
+	"</html>\n"
+
+/* Terminal helpers */
+#define LOC_TERM_RESET "\033[0m"
+#define LOC_TERM_CYAN "\033[36m"
+#define LOC_TERM_GREEN "\033[32m"
+#define LOC_TERM_YELLOW "\033[33m"
+#define LOC_TERM_GRAY "\033[90m"
+
 #define LOC__FR(arr, i) ((const FileResult*) (arr) + (i))
 #define LOC__FR_PATH(arr, i) (LOC__FR(arr, i)->path)
 #define LOC__FR_EXT(arr, i) (LOC__FR(arr, i)->ext)
@@ -258,16 +278,15 @@ static inline void loc__iso8601_now(char* buf, size_t len)
 #define LOC__LANG(arr, i) ((const Language*) (arr) + (i))
 #define LOC__LANG_NAME(arr, i) (LOC__LANG(arr, i)->name)
 
-/* ── Build summary table
- * ─────────────────────────────────────────────────────*/
+/* Build summary table */
 
-static inline int loc__build_sums(const void* files_v, int n_files, int n_langs,
+static int loc__build_sums(const void* files_v, int num_files, int num_langs,
  LocLangSum* out_sums, int max_sums, long* t_files, long* t_code, long* t_comm,
  long* t_blank)
 {
 	/* lang_to_sum_idx maps (lang_idx+1) → position in out_sums.
 	 * We allocate on the heap to avoid VLA / large stack frames. */
-	int map_size = n_langs + 2; /* +1 for the sentinel, +1 for unknown(-1) */
+	int map_size = num_langs + 2; /* +1 for the sentinel, +1 for unknown(-1) */
 	int* lang_to_sum = (int*) malloc((size_t) map_size * sizeof(int));
 	if (!lang_to_sum) {
 		return 0;
@@ -277,7 +296,7 @@ static inline int loc__build_sums(const void* files_v, int n_files, int n_langs,
 	int n_sums = 0;
 	*t_files = *t_code = *t_comm = *t_blank = 0;
 
-	for (int i = 0; i < n_files; i++) {
+	for (int i = 0; i < num_files; i++) {
 		int li = LOC__FR_LANGIDX(files_v, i);
 		int map_idx = li + 1; /* -1 → 0, 0 → 1, … */
 		if (map_idx < 0 || map_idx >= map_size) {
@@ -315,12 +334,11 @@ static inline int loc__build_sums(const void* files_v, int n_files, int n_langs,
 	return n_sums;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/*
  * JSON formatter
- * ═══════════════════════════════════════════════════════════════════════════
  */
 
-static inline void loc_print_json(const void* files_v, int n_files,
+static void loc_print_json(const void* files_v, int n_files,
  const void* langs_v, int n_langs, bool show_files)
 {
 #define MAX_SUMS_JSON 1024
@@ -380,8 +398,9 @@ static inline void loc_print_json(const void* files_v, int n_files,
 			const char* path = LOC__FR_PATH(files_v, i);
 			const char* ext = LOC__FR_EXT(files_v, i);
 			int li = LOC__FR_LANGIDX(files_v, i);
-			const char* lang =
-			 (li >= 0 && li < n_langs) ? LOC__LANG_NAME(langs_v, li) : "(unknown)";
+			const char* lang = (li >= 0 && li < n_langs) ?
+			 LOC__LANG_NAME(langs_v, li) :
+			 "(unknown)";
 
 			char esc_path[4096], esc_lang[128];
 			loc__json_escape(path ? path : "", esc_path, sizeof(esc_path));
@@ -412,239 +431,147 @@ static inline void loc_print_json(const void* files_v, int n_files,
 #undef MAX_SUMS_JSON
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/*
  * HTML formatter
- * ═══════════════════════════════════════════════════════════════════════════
  */
 
 static inline void loc_print_html(const void* files_v, int n_files,
  const void* langs_v, int n_langs, bool show_files, bool verbose)
 {
+	(void) verbose;
+
 #define MAX_SUMS_HTML 1024
-	LocLangSum sums[MAX_SUMS_HTML];
-	long t_files = 0, t_code = 0, t_comm = 0, t_blank = 0;
+
+	LocLangSum* sums = calloc(MAX_SUMS_HTML, sizeof(LocLangSum));
+
+	if (!sums) {
+		return;
+	}
+
+	long t_files = 0;
+	long t_code = 0;
+	long t_comment = 0;
+	long t_blank = 0;
 
 	int n_sums = loc__build_sums(files_v, n_files, n_langs, sums, MAX_SUMS_HTML,
-	 &t_files, &t_code, &t_comm, &t_blank);
-	long grand_total = t_code + t_comm + t_blank;
+	 &t_files, &t_code, &t_comment, &t_blank);
+
+	long grand_total = t_code + t_comment + t_blank;
 
 	char esc[4096];
 
-	/* ── Document head + inline CSS ── */
-	printf(
-	 "<!DOCTYPE html>\n"
-	 "<html lang=\"en\">\n"
-	 "<head>\n"
-	 "  <meta charset=\"UTF-8\">\n"
-	 "  <meta name=\"viewport\" "
-	 "content=\"width=device-width,initial-scale=1\">\n"
-	 "  <title>mini-loc report</title>\n"
-	 "  <style>\n"
-	 "    :root {\n"
-	 "      --bg:       #1e1e2e;\n"
-	 "      --surface:  #2a2a3c;\n"
-	 "      --border:   #44475a;\n"
-	 "      --fg:       #cdd6f4;\n"
-	 "      --muted:    #6c7086;\n"
-	 "      --green:    #a6e3a1;\n"
-	 "      --yellow:   #f9e2af;\n"
-	 "      --cyan:     #89dceb;\n"
-	 "      --red:      #f38ba8;\n"
-	 "      --bar-bg:   #313244;\n"
-	 "    }\n"
-	 "    * { box-sizing: border-box; margin: 0; padding: 0; }\n"
-	 "    body {\n"
-	 "      font-family: 'Consolas', 'Menlo', 'DejaVu Sans Mono', monospace;\n"
-	 "      background: var(--bg); color: var(--fg);\n"
-	 "      padding: 2rem; font-size: 14px;\n"
-	 "    }\n"
-	 "    h1 { color: var(--cyan); margin-bottom: 1.5rem; font-size: 1.4rem; "
-	 "}\n"
-	 "    h2 { color: var(--cyan); margin: 2rem 0 0.75rem; font-size: 1rem;\n"
-	 "         text-transform: uppercase; letter-spacing: 0.08em; }\n"
-	 "    table { width: 100%%; border-collapse: collapse; margin-bottom: "
-	 "1rem; }\n"
-	 "    th {\n"
-	 "      text-align: right; padding: 0.4rem 0.6rem;\n"
-	 "      border-bottom: 1px solid var(--border);\n"
-	 "      color: var(--muted); font-weight: normal;\n"
-	 "    }\n"
-	 "    th:first-child { text-align: left; }\n"
-	 "    td { padding: 0.35rem 0.6rem; text-align: right; }\n"
-	 "    td:first-child { text-align: left; }\n"
-	 "    tr:hover td { background: var(--surface); }\n"
-	 "    .total-row td {\n"
-	 "      border-top: 1px solid var(--border); font-weight: bold;\n"
-	 "    }\n"
-	 "    .code    { color: var(--green);  }\n"
-	 "    .comment { color: var(--yellow); }\n"
-	 "    .blank   { color: var(--muted);  }\n"
-	 "    .pct-cell { min-width: 120px; }\n"
-	 "    .bar-wrap {\n"
-	 "      display: inline-block; width: 80px; height: 8px;\n"
-	 "      background: var(--bar-bg); border-radius: 4px;\n"
-	 "      vertical-align: middle; margin-right: 4px;\n"
-	 "    }\n"
-	 "    .bar-fill {\n"
-	 "      display: block; height: 100%%; border-radius: 4px;\n"
-	 "      background: var(--cyan);\n"
-	 "    }\n"
-	 "    .breakdown {\n"
-	 "      display: flex; gap: 2rem; margin-top: 1rem;\n"
-	 "      font-size: 0.9rem;\n"
-	 "    }\n"
-	 "    .breakdown span { display: flex; align-items: center; gap: 0.4rem; "
-	 "}\n"
-	 "    .dot {\n"
-	 "      display: inline-block; width: 10px; height: 10px;\n"
-	 "      border-radius: 50%%;\n"
-	 "    }\n"
-	 "  </style>\n"
-	 "</head>\n"
-	 "<body>\n"
-	 "  <h1>&#128196; mini-loc &mdash; Language Summary</h1>\n");
+	printf("%s", LOC_HTML_HEADER);
 
-	/* ── Language summary table ── */
 	printf(
-	 "  <h2>Languages</h2>\n"
-	 "  <table>\n"
-	 "    <thead>\n"
-	 "      <tr>\n"
-	 "        <th>Language</th><th>Files</th><th class=\"code\">Code</th>\n"
-	 "        <th>%%</th><th class=\"comment\">Comment</th>\n"
-	 "        <th class=\"blank\">Blank</th><th>Total</th>\n"
-	 "      </tr>\n"
-	 "    </thead>\n"
-	 "    <tbody>\n");
+	 "<table>\n"
+	 "<thead>\n"
+	 "<tr>\n"
+	 "<th>Language</th>\n"
+	 "<th>Files</th>\n"
+	 "<th>Code</th>\n"
+	 "<th>Comment</th>\n"
+	 "<th>Blank</th>\n"
+	 "<th>Total</th>\n"
+	 "<th>%%</th>\n"
+	 "</tr>\n"
+	 "</thead>\n"
+	 "<tbody>\n");
 
 	for (int i = 0; i < n_sums; i++) {
 		const char* name = (sums[i].lang_idx == -1) ?
 		 "(unknown)" :
 		 LOC__LANG_NAME(langs_v, sums[i].lang_idx);
+
 		loc__html_escape(name, esc, sizeof(esc));
+
 		long total =
 		 sums[i].counts.code + sums[i].counts.comment + sums[i].counts.blank;
+
 		double pct = (grand_total > 0) ?
-		 100.0 * (double) total / (double) grand_total :
+		 (100.0 * (double) total / (double) grand_total) :
 		 0.0;
 
 		printf(
-		 "      <tr>\n"
-		 "        <td>%s</td>\n"
-		 "        <td>%d</td>\n"
-		 "        <td class=\"code\">%ld</td>\n"
-		 "        <td class=\"pct-cell\">"
-		 "<span class=\"bar-wrap\">"
-		 "<span class=\"bar-fill\" style=\"width:%.1f%%\">"
-		 "</span>"
-		 "</span>%.1f%%</td>\n"
-		 "        <td class=\"comment\">%ld</td>\n"
-		 "        <td class=\"blank\">%ld</td>\n"
-		 "        <td>%ld</td>\n"
-		 "      </tr>\n",
-		 esc, sums[i].files, sums[i].counts.code, pct, pct,
-		 sums[i].counts.comment, sums[i].counts.blank, total);
+		 "<tr>"
+		 "<td>%s</td>"
+		 "<td>%d</td>"
+		 "<td>%ld</td>"
+		 "<td>%ld</td>"
+		 "<td>%ld</td>"
+		 "<td>%ld</td>"
+		 "<td>%.1f</td>"
+		 "</tr>\n",
+		 esc, sums[i].files, sums[i].counts.code, sums[i].counts.comment,
+		 sums[i].counts.blank, total, pct);
 	}
 
-	/* totals row */
 	printf(
-	 "    </tbody>\n"
-	 "    <tfoot>\n"
-	 "      <tr class=\"total-row\">\n"
-	 "        <td>TOTAL</td>\n"
-	 "        <td>%ld</td>\n"
-	 "        <td class=\"code\">%ld</td>\n"
-	 "        <td>100.0%%</td>\n"
-	 "        <td class=\"comment\">%ld</td>\n"
-	 "        <td class=\"blank\">%ld</td>\n"
-	 "        <td>%ld</td>\n"
-	 "      </tr>\n"
-	 "    </tfoot>\n"
-	 "  </table>\n",
-	 t_files, t_code, t_comm, t_blank, grand_total);
+	 "<tr>"
+	 "<td><b>TOTAL</b></td>"
+	 "<td><b>%ld</b></td>"
+	 "<td><b>%ld</b></td>"
+	 "<td><b>%ld</b></td>"
+	 "<td><b>%ld</b></td>"
+	 "<td><b>%ld</b></td>"
+	 "<td><b>100.0</b></td>"
+	 "</tr>\n",
+	 t_files, t_code, t_comment, t_blank, grand_total);
 
-	/* breakdown legend */
-	if (grand_total > 0) {
-		double c_pct = 100.0 * (double) t_code / (double) grand_total;
-		double m_pct = 100.0 * (double) t_comm / (double) grand_total;
-		double b_pct = 100.0 * (double) t_blank / (double) grand_total;
-		printf(
-		 "  <div class=\"breakdown\">\n"
-		 "    <span><span class=\"dot\" "
-		 "style=\"background:var(--green)\"></span>"
-		 "Code %.1f%%</span>\n"
-		 "    <span><span class=\"dot\" "
-		 "style=\"background:var(--yellow)\"></span>"
-		 "Comment %.1f%%</span>\n"
-		 "    <span><span class=\"dot\" "
-		 "style=\"background:var(--muted)\"></span>"
-		 "Blank %.1f%%</span>\n"
-		 "  </div>\n",
-		 c_pct, m_pct, b_pct);
-	}
+	printf("</tbody>\n</table>\n");
 
-	/* ── Per-file table (optional) ── */
 	if (show_files && n_files > 0) {
 		printf(
-		 "  <h2>Files</h2>\n"
-		 "  <table>\n"
-		 "    <thead>\n"
-		 "      <tr>\n"
-		 "        <th>Path</th>\n");
-		if (verbose) {
-			printf("        <th>Ext</th>\n");
-		}
-		printf(
-		 "        <th class=\"code\">Code</th>\n"
-		 "        <th class=\"comment\">Comment</th>\n"
-		 "        <th class=\"blank\">Blank</th>\n"
-		 "        <th>Total</th>\n"
-		 "      </tr>\n"
-		 "    </thead>\n"
-		 "    <tbody>\n");
+		 "<br>\n"
+		 "<table>\n"
+		 "<thead>\n"
+		 "<tr>\n"
+		 "<th>Path</th>\n"
+		 "<th>Code</th>\n"
+		 "<th>Comment</th>\n"
+		 "<th>Blank</th>\n"
+		 "<th>Total</th>\n"
+		 "</tr>\n"
+		 "</thead>\n"
+		 "<tbody>\n");
 
 		for (int i = 0; i < n_files; i++) {
 			const char* path = LOC__FR_PATH(files_v, i);
-			const char* ext = LOC__FR_EXT(files_v, i);
+
 			long code = LOC__FR_CODE(files_v, i);
 			long comment = LOC__FR_COMMENT(files_v, i);
 			long blank = LOC__FR_BLANK(files_v, i);
+
 			long total = code + comment + blank;
 
-			char esc_path[4096];
-			loc__html_escape(path ? path : "", esc_path, sizeof(esc_path));
+			loc__html_escape(path ? path : "", esc, sizeof(esc));
 
-			printf("      <tr>\n"
-			       "        <td>%s</td>\n",
-			 esc_path);
-			if (verbose) {
-				char esc_ext[64];
-				loc__html_escape(ext ? ext : "", esc_ext, sizeof(esc_ext));
-				printf("        <td>%s</td>\n", esc_ext);
-			}
 			printf(
-			 "        <td class=\"code\">%ld</td>\n"
-			 "        <td class=\"comment\">%ld</td>\n"
-			 "        <td class=\"blank\">%ld</td>\n"
-			 "        <td>%ld</td>\n"
-			 "      </tr>\n",
-			 code, comment, blank, total);
+			 "<tr>"
+			 "<td>%s</td>"
+			 "<td>%ld</td>"
+			 "<td>%ld</td>"
+			 "<td>%ld</td>"
+			 "<td>%ld</td>"
+			 "</tr>\n",
+			 esc, code, comment, blank, total);
 		}
-		printf("    </tbody>\n"
-		       "  </table>\n");
+
+		printf("</tbody>\n</table>\n");
 	}
 
-	printf("</body>\n</html>\n");
+	printf("%s", LOC_HTML_FOOTER);
+
+	free(sums);
+
 #undef MAX_SUMS_HTML
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/*
  * SQL formatter
- * ═══════════════════════════════════════════════════════════════════════════
  */
 
-static inline void loc_print_sql(const void* files_v, int n_files,
- const void* langs_v, int n_langs, bool show_files)
+static void loc_print_sql(const void* files_v, int n_files, const void* langs_v,
+ int n_langs, bool show_files)
 {
 #define MAX_SUMS_SQL 1024
 	LocLangSum sums[MAX_SUMS_SQL];
@@ -718,8 +645,9 @@ static inline void loc_print_sql(const void* files_v, int n_files,
 			const char* path = LOC__FR_PATH(files_v, i);
 			const char* ext = LOC__FR_EXT(files_v, i);
 			int li = LOC__FR_LANGIDX(files_v, i);
-			const char* lang =
-			 (li >= 0 && li < n_langs) ? LOC__LANG_NAME(langs_v, li) : "(unknown)";
+			const char* lang = (li >= 0 && li < n_langs) ?
+			 LOC__LANG_NAME(langs_v, li) :
+			 "(unknown)";
 
 			char esc_path[4096], esc_ext[64], esc_lang[128];
 			loc__sql_escape(path ? path : "", esc_path, sizeof(esc_path));
@@ -742,6 +670,108 @@ static inline void loc_print_sql(const void* files_v, int n_files,
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+ * TTY formatter
+ * ═══════════════════════════════════════════════════════════════════════════
+ */
+
+static inline void loc_print_terminal(const void* files_v, int n_files,
+ const void* langs_v, int n_langs, bool show_files, bool verbose)
+{
+#define MAX_SUMS_TERM 1024
+
+	if (n_files == 0) {
+		printf("mini-loc: no files processed.\n");
+		return;
+	}
+
+	LocLangSum* sums = calloc(MAX_SUMS_TERM, sizeof(LocLangSum));
+
+	if (!sums) {
+		return;
+	}
+
+	long t_files = 0;
+	long t_code = 0;
+	long t_comment = 0;
+	long t_blank = 0;
+
+	int n_sums = loc__build_sums(files_v, n_files, n_langs, sums, MAX_SUMS_TERM,
+	 &t_files, &t_code, &t_comment, &t_blank);
+
+	long grand_total = t_code + t_comment + t_blank;
+
+	if (show_files) {
+		printf("\n%sPer-File Results%s\n\n", LOC_TERM_CYAN, LOC_TERM_RESET);
+
+		if (verbose) {
+			printf("%-45s %-10s %9s %9s %9s %9s\n", "File", "Ext", "Code",
+			 "Comment", "Blank", "Total");
+		} else {
+			printf("%-55s %9s %9s %9s %9s\n", "File", "Code", "Comment",
+			 "Blank", "Total");
+		}
+
+		for (int i = 0; i < n_files; i++) {
+			long code = LOC__FR_CODE(files_v, i);
+			long comment = LOC__FR_COMMENT(files_v, i);
+			long blank = LOC__FR_BLANK(files_v, i);
+
+			long total = code + comment + blank;
+
+			if (verbose) {
+				printf("%-45s %-10s %9ld %9ld %9ld %9ld\n",
+				 LOC__FR_PATH(files_v, i),
+				 LOC__FR_EXT(files_v, i) ? LOC__FR_EXT(files_v, i) : "", code,
+				 comment, blank, total);
+			} else {
+				printf("%-55s %9ld %9ld %9ld %9ld\n", LOC__FR_PATH(files_v, i),
+				 code, comment, blank, total);
+			}
+		}
+
+		printf("\n");
+	}
+
+	printf("\n%sLanguage Summary%s\n\n", LOC_TERM_CYAN, LOC_TERM_RESET);
+
+	printf("%-22s %7s %10s %7s %10s %10s %10s\n", "Language", "Files", "Code",
+	 "Pct", "Comment", "Blank", "Total");
+
+	for (int i = 0; i < n_sums; i++) {
+		long total =
+		 sums[i].counts.code + sums[i].counts.comment + sums[i].counts.blank;
+
+		double pct = (grand_total > 0) ?
+		 (100.0 * (double) total / (double) grand_total) :
+		 0.0;
+
+		const char* name =
+		 (sums[i].lang_idx >= 0 && sums[i].lang_idx < n_langs) ?
+		 LOC__LANG_NAME(langs_v, sums[i].lang_idx) :
+		 "(unknown)";
+
+		printf(
+		 "%-22s %7d "
+		 "%s%10ld%s "
+		 "%6.1f%% "
+		 "%s%10ld%s "
+		 "%s%10ld%s "
+		 "%10ld\n",
+		 name, sums[i].files, LOC_TERM_GREEN, sums[i].counts.code,
+		 LOC_TERM_RESET, pct, LOC_TERM_YELLOW, sums[i].counts.comment,
+		 LOC_TERM_RESET, LOC_TERM_GRAY, sums[i].counts.blank, LOC_TERM_RESET,
+		 total);
+	}
+
+	printf("%-22s %7ld %10ld %6.1f%% %10ld %10ld %10ld\n", "TOTAL", t_files,
+	 t_code, 100.0, t_comment, t_blank, grand_total);
+
+	free(sums);
+
+#undef MAX_SUMS_TERM
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
  * Master dispatcher
  * ═══════════════════════════════════════════════════════════════════════════
  */
@@ -760,10 +790,10 @@ static inline void loc_print_report(LocOutputFormat fmt, const void* files,
 		loc_print_sql(files, n_files, langs, n_langs, show_files);
 		break;
 	case LOC_FMT_TERMINAL:
+		loc_print_terminal(files, n_files, langs, n_langs, show_files, verbose);
+		break;
+
 	default:
-		/* Caller keeps its own print_report() for the ANSI terminal view.
-		 * To route terminal output through this header too, add a
-		 * loc_print_terminal() function and call it here. */
 		break;
 	}
 }
@@ -778,5 +808,12 @@ static inline void loc_print_report(LocOutputFormat fmt, const void* files,
 #undef LOC__FR_BLANK
 #undef LOC__LANG
 #undef LOC__LANG_NAME
+#undef LOC_TERM_RESET
+#undef LOC_TERM_CYAN
+#undef LOC_TERM_GREEN
+#undef LOC_TERM_YELLOW
+#undef LOC_TERM_GRAY
+#undef LOC_HTML_HEADER
+#undef LOC_HTML_FOOTER
 
 #endif /* LOC_OUTPUT_H */
