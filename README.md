@@ -7,14 +7,17 @@
 Built with speed in mind, `mini-loc` handles massive codebases in sub-second times.
 (Ran on an i7-1156G7; 24 GBs of ram; On an m.2 NVME)
 
+There are the make targets for `pgo-gen`, `copy-optimized`, and make `optimized`. To make profiled optimized builds.
+`copy-optimized` is to ensure the .gitignore doesnt drop the `.gcda` profiles for the 3 targets.
+
 | Target           | Single-Threaded | Multi-Threaded |
 | :--------------- | :-------------- | :------------- |
-| **Linux Kernel** | ~1.1s           | ---            |
-| **Node.js**      | ~0.5s           | ---            |
-| **Ladybird**     | ~0.1s           | ---            |
-| **Rust**         | ~0.3s           | ---            |
-| **Vscode**       | ~0.5s           | ---            |
-| **Pi-hole**      | ~0.01s          | ---            |
+| **Linux Kernel** | ~1.1s           | ~0.21          |
+| **Node.js**      | ~0.5s           | ~0.1           |
+| **Ladybird**     | ~0.1s           | ~0.04          |
+| **Rust**         | ~0.3s           | ~0.8           |
+| **Vscode**       | ~0.5s           | ~0.15          |
+| **Pi-hole**      | ~0.01s          | ~0.001         |
 
 ### Multi-Threaded Performance
 
