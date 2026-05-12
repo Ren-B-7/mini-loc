@@ -1145,7 +1145,6 @@ int main(int argc, char** argv)
 	if (all_files) {
 		for (int i = 0; i < total_files; i++) {
 			free(all_files[i].path);
-			free(all_files[i].ext);
 		}
 		free(all_files);
 	}

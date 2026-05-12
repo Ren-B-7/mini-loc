@@ -40,6 +40,7 @@
 #ifndef LOC_OUTPUT_H
 #define LOC_OUTPUT_H
 
+#include <inttypes.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -305,9 +306,9 @@ static void loc_print_json(const FileResult* files_v, int n_files,
 		 "    {\n"
 		 "      \"language\": \"%s\",\n"
 		 "      \"files\": %d,\n"
-		 "      \"code\": %ld,\n"
-		 "      \"comment\": %ld,\n"
-		 "      \"blank\": %ld,\n"
+		 "      \"code\": %" PRIu32 ",\n"
+		 "      \"comment\": %" PRIu32 ",\n"
+		 "      \"blank\": %" PRIu32 ",\n"
 		 "      \"total\": %ld,\n"
 		 "      \"pct\": %.2f\n"
 		 "    }%s\n",
@@ -351,9 +352,9 @@ static void loc_print_json(const FileResult* files_v, int n_files,
 			 "      \"path\": \"%s\",\n"
 			 "      \"ext\": \"%s\",\n"
 			 "      \"language\": \"%s\",\n"
-			 "      \"code\": %ld,\n"
-			 "      \"comment\": %ld,\n"
-			 "      \"blank\": %ld,\n"
+			 "      \"code\": %" PRIu32 ",\n"
+			 "      \"comment\": %" PRIu32 ",\n"
+			 "      \"blank\": %" PRIu32 ",\n"
 			 "      \"total\": %ld\n"
 			 "    }%s\n",
 			 esc_path, ext ? ext : "", esc_lang, code, comment, blank, total,
@@ -430,9 +431,9 @@ static inline void loc_print_html(const FileResult* files_v, int n_files,
 		 "<tr>"
 		 "<td>%s</td>"
 		 "<td>%d</td>"
-		 "<td>%ld</td>"
-		 "<td>%ld</td>"
-		 "<td>%ld</td>"
+		 "<td>%" PRIu32 "</td>"
+		 "<td>%" PRIu32 "</td>"
+		 "<td>%" PRIu32 "</td>"
 		 "<td>%ld</td>"
 		 "<td>%.1f</td>"
 		 "</tr>\n",
@@ -483,9 +484,9 @@ static inline void loc_print_html(const FileResult* files_v, int n_files,
 			printf(
 			 "<tr>"
 			 "<td>%s</td>"
-			 "<td>%ld</td>"
-			 "<td>%ld</td>"
-			 "<td>%ld</td>"
+			 "<td>%" PRIu32 "</td>"
+			 "<td>%" PRIu32 "</td>"
+			 "<td>%" PRIu32 "</td>"
 			 "<td>%ld</td>"
 			 "</tr>\n",
 			 esc, code, comment, blank, total);
@@ -567,7 +568,7 @@ static void loc_print_sql(const FileResult* files_v, int n_files,
 
 		printf("INSERT INTO loc_languages"
 		       " (run_id, language, files, code, comment, blank, total, pct)"
-		       " VALUES ('%s', '%s', %d, %ld, %ld, %ld, %ld, %.4f);\n",
+		       " VALUES ('%s', '%s', %d, %" PRIu32 ", %" PRIu32 ", %" PRIu32 ", %ld, %.4f);\n",
 		 ts, esc, sums[i].files, sums[i].counts.code, sums[i].counts.comment,
 		 sums[i].counts.blank, total, pct);
 	}
@@ -595,7 +596,7 @@ static void loc_print_sql(const FileResult* files_v, int n_files,
 
 			printf("INSERT INTO loc_files"
 			       " (run_id, path, ext, language, code, comment, blank, total)"
-			       " VALUES ('%s', '%s', '%s', '%s', %ld, %ld, %ld, %ld);\n",
+			       " VALUES ('%s', '%s', '%s', '%s', %" PRIu32 ", %" PRIu32 ", %" PRIu32 ", %ld);\n",
 			 ts, esc_path, esc_ext, esc_lang, code, comment, blank, total);
 		}
 		printf("\n");
@@ -685,10 +686,10 @@ static inline void loc_print_terminal(const FileResult* files_v, int n_files,
 
 		printf(
 		 "%-22s %7d "
-		 "%s%10ld%s "
+		 "%s%10" PRIu32 "%s "
 		 "%6.1f%% "
-		 "%s%10ld%s "
-		 "%s%10ld%s "
+		 "%s%10" PRIu32 "%s "
+		 "%s%10" PRIu32 "%s "
 		 "%10ld\n",
 		 name, sums[i].files, LOC_TERM_GREEN, sums[i].counts.code,
 		 LOC_TERM_RESET, pct, LOC_TERM_YELLOW, sums[i].counts.comment,

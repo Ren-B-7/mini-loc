@@ -9,9 +9,9 @@
 #ifndef LOC_TYPES_H
 #define LOC_TYPES_H
 
-#include <cstdint>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 /*
  * Shared constants
