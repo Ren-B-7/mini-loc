@@ -145,11 +145,11 @@ $(BUILD_DIR)/set.o: src/include/set.c
 # Rules to link the executables in the bin/ directory
 single: $(OBJ_SINGLE) $(OBJS_COMMON)
 	@echo "Linking $(EXECUTABLE_SINGLE) ..."
-	$(CC) $(ALL_CFLAGS) $(ALL_LDFLAGS) -o $(EXECUTABLE_SINGLE) $^ -lm -pthread
+	$(CC) $(ALL_CFLAGS) $(ALL_LDFLAGS) -o $(EXECUTABLE_SINGLE) $^
 
 multi: $(OBJ_MULTI) $(OBJS_COMMON)
 	@echo "Linking $(EXECUTABLE_MULTI) ..."
-	$(CC) $(ALL_CFLAGS) $(ALL_LDFLAGS) -o $(EXECUTABLE_MULTI) $^ -lm -pthread
+	$(CC) $(ALL_CFLAGS) $(ALL_LDFLAGS) -o $(EXECUTABLE_MULTI) $^ -pthread
 
 build-json: src/include/languages_data.h
 
@@ -170,8 +170,13 @@ run: multi
 # Format code using clang-format
 format:
 	@echo "Formatting code..."
+	@echo "Clang-format"
 	@clang-format -style=file:./.clang-format -i $(SRCS_ALL) $(HDRS)
-	mbake format --config ./.bake.toml Makefile
+	@echo "mbake"
+	@mbake format --config ./.bake.toml Makefile
+	@echo "black"
+	@black ./assets/convert_langs.py
+	@echo "Formatting done"
 
 # Run static analysis with clang-tidy
 CLANG_TIDY_CHECKS = -checks=-*,bugprone-*,clang-analyzer-*,performance-*
@@ -181,6 +186,7 @@ lint:
 	@echo "Running static analysis..."
 	@clang-tidy $(CLANG_TIDY_CHECKS) $(SRCS_ALL) -- $(CLANG_TIDY_FLAGS)
 	mbake validate --config ./.bake.toml Makefile
+	@echo "Analysis done"
 
 # Installation directories
 INSTALL_DIR = $(HOME)/.local/bin

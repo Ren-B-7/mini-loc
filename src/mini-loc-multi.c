@@ -3,7 +3,6 @@
  * Counts code, comment, and blank lines per file/language.
  * Language definitions loaded from languages.json (no external deps).
  */
-#define OFFSET 700
 #include <assert.h>
 #include <ctype.h>
 #include <dirent.h>
@@ -20,99 +19,20 @@
 #include "include/minicli.h"
 #include "include/output.h"
 #include "include/set.h"
+#include "include/types.h"
 
 static LocOutputFormat g_output_fmt = LOC_FMT_TERMINAL;
 
 /* -------------------------------------------------------------------------
  * Compile-time constants
  * ------------------------------------------------------------------------- */
-#define MAX_LANGS 512
-#define MAX_EXT_LEN 32
-#define MAX_COMMENT_LEN 16
-#define MAX_LINE_COMMENTS 8
-#define MAX_BLOCK_COMMENTS 8
-#define MAX_LANG_NAME_LEN 32
-#define MAX_EXTENSIONS 32
-#define PATH_BUF 4096
-#define MAX_FILE_SIZE (1024L * 1024L)
 
 /* Work-queue / thread-pool tuning */
 #define QUEUE_INIT_CAP 4096 /* initial work-queue slot count (power of 2) */
 #define MAX_THREADS 64      /* hard upper bound on pool size              */
 #define LOCAL_INIT_CAP 1024 /* initial per-thread FileResult capacity     */
 
-/* Report column widths */
-#define COL_LANG 20
-#define COL_FILES 6
-#define COL_NUM 9
-#define COL_PCT 6
-
-/* ANSI colours */
-#define ANSI_BOLD "\033[1m"
-#define ANSI_CYAN "\033[36m"
-#define ANSI_GREEN "\033[32m"
-#define ANSI_YELLOW "\033[33m"
-#define ANSI_GRAY "\033[90m"
-#define ANSI_RESET "\033[0m"
-
-/* -------------------------------------------------------------------------
- * Data types
- * ------------------------------------------------------------------------- */
-#ifndef COUNTS_DEFINED
-#define COUNTS_DEFINED
-
-typedef struct {
-	long code;
-	long comment;
-	long blank;
-} Counts;
-#endif
-
-#ifndef LANGUAGE_DEFINED
-#define LANGUAGE_DEFINED
-
-typedef struct {
-	size_t line_comment_lens[MAX_LINE_COMMENTS];
-	size_t block_start_lens[MAX_BLOCK_COMMENTS];
-	size_t block_end_lens[MAX_BLOCK_COMMENTS];
-	int n_extensions;
-	int n_line_comments;
-	int n_block_comments;
-	bool data_only;
-	char name[MAX_LANG_NAME_LEN];
-	char line_comments[MAX_LINE_COMMENTS][MAX_COMMENT_LEN];
-	char block_start[MAX_BLOCK_COMMENTS][MAX_COMMENT_LEN];
-	char block_end[MAX_BLOCK_COMMENTS][MAX_COMMENT_LEN];
-	char extensions[MAX_EXTENSIONS][MAX_EXT_LEN];
-} Language;
-#endif
-
-#ifndef FILERESULT_DEFINED
-#define FILERESULT_DEFINED
-
-typedef struct {
-	char* path;
-	char* ext;
-	int lang_idx;
-	Counts counts;
-} FileResult;
-#endif
-
-/* Extension → language index: sorted, searched with bsearch O(log n). */
-typedef struct {
-	char ext[MAX_EXT_LEN];
-	int lang_idx;
-} ExtEntry;
-
-typedef struct {
-	const char* path;
-	const char* ext;
-} LangLookupParams;
-
-/* =========================================================================
- * Read-only globals — written once at startup, never mutated afterwards.
- * Workers can read these without any locking.
- * ========================================================================= */
+/* Extension -> language index: sorted, searched with bsearch O(log n). */
 static Language g_langs[MAX_LANGS];
 static int g_n_langs = 0;
 
@@ -185,7 +105,7 @@ static void* worker_thread(void* arg);
 /* =========================================================================
  * JSON mini-parser (unchanged from original)
  * ========================================================================= */
-static const char* json_skip_whitespace(const char* p)
+static inline const char* json_skip_whitespace(const char* p)
 {
 	if (!p) {
 		return NULL;
@@ -425,7 +345,7 @@ static void load_languages(const unsigned char* data, size_t len, bool append)
 	}
 }
 
-static int ext_entry_cmp(const void* a, const void* b)
+static inline int ext_entry_cmp(const void* a, const void* b)
 {
 	return strcasecmp(((const ExtEntry*) a)->ext, ((const ExtEntry*) b)->ext);
 }
@@ -448,7 +368,7 @@ static void build_lookup_table(void)
 	 ext_entry_cmp);
 }
 
-static int ext_cmp_str(const void* key, const void* entry)
+static inline int ext_cmp_str(const void* key, const void* entry)
 {
 	return strcasecmp((const char*) key, ((const ExtEntry*) entry)->ext);
 }
@@ -891,7 +811,7 @@ static void process_path_producer(const char* path, WorkQueue* queue)
 /* =========================================================================
  * CLI callbacks
  * ========================================================================= */
-static void cb_output_fmt(int argc, char** argv, void* user_data)
+static inline void cb_output_fmt(int argc, char** argv, void* user_data)
 {
 	if (argc > 0) {
 		if (strcmp(argv[0], "json") == 0) {
@@ -900,14 +820,12 @@ static void cb_output_fmt(int argc, char** argv, void* user_data)
 			g_output_fmt = LOC_FMT_HTML;
 		} else if (strcmp(argv[0], "sql") == 0) {
 			g_output_fmt = LOC_FMT_SQL;
-		} else {
-			g_output_fmt = LOC_FMT_TERMINAL;
 		}
 	}
 	(void) user_data;
 }
 
-static void cb_verbose(int argc, char** argv, void* user_data)
+static inline void cb_verbose(int argc, char** argv, void* user_data)
 {
 	(void) argc;
 	(void) argv;
@@ -915,7 +833,7 @@ static void cb_verbose(int argc, char** argv, void* user_data)
 	g_verbose = true;
 }
 
-static void cb_recurse(int argc, char** argv, void* user_data)
+static inline void cb_recurse(int argc, char** argv, void* user_data)
 {
 	(void) argc;
 	(void) argv;
@@ -923,7 +841,7 @@ static void cb_recurse(int argc, char** argv, void* user_data)
 	g_recurse = true;
 }
 
-static void cb_files(int argc, char** argv, void* user_data)
+static inline void cb_files(int argc, char** argv, void* user_data)
 {
 	(void) argc;
 	(void) argv;
@@ -931,7 +849,7 @@ static void cb_files(int argc, char** argv, void* user_data)
 	g_show_files = true;
 }
 
-static void cb_list_unknown(int argc, char** argv, void* user_data)
+static inline void cb_list_unknown(int argc, char** argv, void* user_data)
 {
 	(void) argc;
 	(void) argv;
@@ -939,7 +857,7 @@ static void cb_list_unknown(int argc, char** argv, void* user_data)
 	g_list_unknown = true;
 }
 
-static void cb_filter(int argc, char** argv, void* user_data)
+static inline void cb_filter(int argc, char** argv, void* user_data)
 {
 	if (argc > 0) {
 		g_filter = argv[0];

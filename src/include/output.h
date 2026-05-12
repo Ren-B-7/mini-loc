@@ -47,62 +47,9 @@
 #include <string.h>
 #include <time.h>
 
-/* ── Forward declarations ────────────────────────────────────────────────────
- *
- * These types must already be defined in the including translation unit
- * (they live in mini-loc-single.c / mini-loc-multi.c).  We only use them
- * through the pointers / arrays passed into each function, so a forward
- * declaration is sufficient.
- */
-#ifndef LOC_TYPES_DEFINED
-#define LOC_TYPES_DEFINED
+#include "types.h"
 
-#ifndef COUNTS_DEFINED
-#define COUNTS_DEFINED
-
-typedef struct {
-	long code;
-	long comment;
-	long blank;
-} Counts;
-#endif
-
-#ifndef LANGUAGE_DEFINED
-#define LANGUAGE_DEFINED
-
-typedef struct {
-	size_t line_comment_lens[8];
-	size_t block_start_lens[8];
-	size_t block_end_lens[8];
-	int n_extensions;
-	int n_line_comments;
-	int n_block_comments;
-	bool data_only;
-	char name[32];
-	char line_comments[8][16];
-	char block_start[8][16];
-	char block_end[8][16];
-	char extensions[32][32];
-} Language;
-#endif
-
-#ifndef FILERESULT_DEFINED
-#define FILERESULT_DEFINED
-
-typedef struct {
-	char* path;
-	char* ext;
-	int lang_idx;
-	Counts counts;
-} FileResult;
-#endif
-
-#endif
-
-/* ── Public API ──────────────────────────────────────────────────────────────
- *
- * The Language and FileResult structures are defined above.
- */
+/* Public types */
 
 typedef struct {
 	int lang_idx;

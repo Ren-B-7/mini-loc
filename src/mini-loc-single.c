@@ -3,7 +3,6 @@
  * Counts code, comment, and blank lines per file/language.
  * Language definitions loaded from languages.json (no external deps).
  */
-#define OFFSET 700
 #include <assert.h>
 #include <ctype.h>
 #include <dirent.h>
@@ -18,82 +17,14 @@
 #include "include/minicli.h"
 #include "include/output.h"
 #include "include/set.h"
+#include "include/types.h"
 
 static LocOutputFormat g_output_fmt = LOC_FMT_TERMINAL;
-
-#define MAX_LANGS 512
-#define MAX_EXT_LEN 32
-#define MAX_COMMENT_LEN 16
-#define MAX_LINE_COMMENTS 8
-#define MAX_BLOCK_COMMENTS 8
-#define MAX_LANG_NAME_LEN 32
-#define MAX_EXTENSIONS 32
-#define MAX_FILES 65536
-#define PATH_BUF 4096
-#define LINE_BUF 65536
-#define MAX_FILE_SIZE (1024L * 1024L)
-
-#define COL_LANG 20
-#define COL_FILES 6
-#define COL_NUM 9
-#define COL_PCT 6
-
-#define ANSI_BOLD "\033[1m"
-#define ANSI_CYAN "\033[36m"
-#define ANSI_GREEN "\033[32m"
-#define ANSI_YELLOW "\033[33m"
-#define ANSI_GRAY "\033[90m"
-#define ANSI_RESET "\033[0m"
-
-#ifndef COUNTS_DEFINED
-#define COUNTS_DEFINED
-
-typedef struct {
-	long code;
-	long comment;
-	long blank;
-} Counts;
-#endif
-
-#ifndef LANGUAGE_DEFINED
-#define LANGUAGE_DEFINED
-
-typedef struct {
-	size_t line_comment_lens[MAX_LINE_COMMENTS];
-	size_t block_start_lens[MAX_BLOCK_COMMENTS];
-	size_t block_end_lens[MAX_BLOCK_COMMENTS];
-	int n_extensions;
-	int n_line_comments;
-	int n_block_comments;
-	bool data_only;
-	char name[MAX_LANG_NAME_LEN];
-	char line_comments[MAX_LINE_COMMENTS][MAX_COMMENT_LEN];
-	char block_start[MAX_BLOCK_COMMENTS][MAX_COMMENT_LEN];
-	char block_end[MAX_BLOCK_COMMENTS][MAX_COMMENT_LEN];
-	char extensions[MAX_EXTENSIONS][MAX_EXT_LEN];
-} Language;
-#endif
-
-#ifndef FILERESULT_DEFINED
-#define FILERESULT_DEFINED
-
-typedef struct {
-	char* path;
-	char* ext;
-	int lang_idx;
-	Counts counts;
-} FileResult;
-#endif
 
 /*
  * ExtEntry: maps a file extension (or bare filename) to a language index.
  * The table is sorted and searched with bsearch for O(log n) lookup.
  */
-typedef struct {
-	char ext[MAX_EXT_LEN];
-	int lang_idx;
-} ExtEntry;
-
 static Language g_langs[MAX_LANGS];
 static int g_n_langs = 0;
 
@@ -102,8 +33,7 @@ static ExtEntry g_ext_table[MAX_LANGS * MAX_EXTENSIONS];
 static int g_n_ext_entries = 0;
 
 /*
- * g_ignored_set: O(1) hash-set for ignored extensions (e.g. ".gz", ".png").
- * Replaces the old linear-scan over g_ignored_exts[].
+ * g_ignored_set: O(1) hash-set for ignored extensions
  */
 static SimpleSet g_ignored_set;
 static bool g_ignored_set_ready = false;
@@ -370,7 +300,7 @@ static void load_languages(const unsigned char* data, size_t len, bool append)
  * ExtEntry array so find_language() can use bsearch (O(log n)) instead of
  * the original O(langs * extensions) double linear scan.
  * ------------------------------------------------------------------------- */
-static int ext_entry_cmp(const void* a, const void* b)
+static inline int ext_entry_cmp(const void* a, const void* b)
 {
 	return strcasecmp(((const ExtEntry*) a)->ext, ((const ExtEntry*) b)->ext);
 }
@@ -393,18 +323,12 @@ static void build_lookup_table(void)
 	 ext_entry_cmp);
 }
 
-typedef struct {
-	const char* path;
-	const char* ext;
-} LangLookupParams;
-
 /*
  * ext_cmp_str: comparator for bsearch() that takes a raw C string as the key
  * instead of a full ExtEntry.  This lets find_language() pass the extension
- * pointer directly, avoiding the memset + strncpy into a temporary ExtEntry
- * that the old implementation required.
+ * pointer directly, avoiding the memset + strncpy into a temporary ExtEntry.
  */
-static int ext_cmp_str(const void* key, const void* entry)
+static inline int ext_cmp_str(const void* key, const void* entry)
 {
 	return strcasecmp((const char*) key, ((const ExtEntry*) entry)->ext);
 }
@@ -641,10 +565,7 @@ static void process_path(const char* path)
 {
 	struct stat st;
 	/*
-	 * BUG FIX: use lstat() instead of stat().
-	 * stat() follows symlinks, so a symlink pointing to a parent directory
-	 * causes infinite mutual recursion between process_path and walk_dir.
-	 * lstat() reports the symlink itself; we skip it unconditionally.
+	 * lstat instead of stat to ensure no symlinks gets followed
 	 */
 	if (lstat(path, &st) != 0) {
 		return;
@@ -677,9 +598,7 @@ static void walk_dir(const char* path)
 	while ((entry = readdir(d))) {
 		if (entry->d_name[0] == '.') {
 			/*
-			 * Skips ".", "..", and all hidden entries (.git, .svn, .hg).
-			 * Hidden directories can contain symlink loops back to parent
-			 * directories — a source of infinite recursion.
+			 * Ensure we skip hidden files and directories
 			 */
 			continue;
 		}
@@ -718,7 +637,7 @@ static void walk_dir(const char* path)
 	closedir(d);
 }
 
-static void cb_output_fmt(int argc, char** argv, void* user_data)
+static inline void cb_output_fmt(int argc, char** argv, void* user_data)
 {
 	if (argc > 0) {
 		if (strcmp(argv[0], "json") == 0) {
@@ -734,7 +653,7 @@ static void cb_output_fmt(int argc, char** argv, void* user_data)
 	(void) user_data;
 }
 
-static void cb_verbose(int argc, char** argv, void* user_data)
+static inline void cb_verbose(int argc, char** argv, void* user_data)
 {
 	(void) argc;
 	(void) argv;
@@ -742,7 +661,7 @@ static void cb_verbose(int argc, char** argv, void* user_data)
 	g_verbose = true;
 }
 
-static void cb_recurse(int argc, char** argv, void* user_data)
+static inline void cb_recurse(int argc, char** argv, void* user_data)
 {
 	(void) argc;
 	(void) argv;
@@ -750,7 +669,7 @@ static void cb_recurse(int argc, char** argv, void* user_data)
 	g_recurse = true;
 }
 
-static void cb_files(int argc, char** argv, void* user_data)
+static inline void cb_files(int argc, char** argv, void* user_data)
 {
 	(void) argc;
 	(void) argv;
@@ -758,7 +677,7 @@ static void cb_files(int argc, char** argv, void* user_data)
 	g_show_files = true;
 }
 
-static void cb_list_unknown(int argc, char** argv, void* user_data)
+static inline void cb_list_unknown(int argc, char** argv, void* user_data)
 {
 	(void) argc;
 	(void) argv;
@@ -766,7 +685,7 @@ static void cb_list_unknown(int argc, char** argv, void* user_data)
 	g_list_unknown = true;
 }
 
-static void cb_filter(int argc, char** argv, void* user_data)
+static inline void cb_filter(int argc, char** argv, void* user_data)
 {
 	if (argc > 0) {
 		g_filter = argv[0];
