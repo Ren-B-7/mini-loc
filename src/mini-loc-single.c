@@ -122,7 +122,6 @@ static void load_languages(const unsigned char* data, size_t len, bool append)
 	(void) len;
 	if (!append) {
 		g_n_langs = 0;
-		/* Reinitialise the ignored-extension set for a fresh load. */
 		if (g_ignored_set_ready) {
 			set_destroy(&g_ignored_set);
 			g_ignored_set_ready = false;
@@ -170,7 +169,6 @@ static void load_languages(const unsigned char* data, size_t len, bool append)
 						while (p && *p && *p != ']') {
 							char ign_ext[16];
 							p = json_read_string(p, ign_ext, sizeof(ign_ext));
-							/* Store in hash set for O(1) lookup later. */
 							set_add_str(&g_ignored_set, ign_ext);
 							p = json_skip_whitespace(p);
 							if (p && *p == ',') {
@@ -222,10 +220,6 @@ static void load_languages(const unsigned char* data, size_t len, bool append)
 							p++;
 							while (p && *p && *p != ']') {
 								if (*p == '[') {
-									/*
-									 * Normal case: each block comment is a
-									 * two-element array ["start", "end"].
-									 */
 									p++;
 									p = json_read_string(p,
 									 temp.block_start[temp.n_block_comments],
@@ -277,11 +271,14 @@ static void load_languages(const unsigned char* data, size_t len, bool append)
 			}
 			if (!is_config) {
 				for (int i = 0; i < temp.n_line_comments; i++) {
-					temp.line_comment_lens[i] = strlen(temp.line_comments[i]);
+					temp.line_comment_lens[i] =
+					 (uint8_t) strlen(temp.line_comments[i]);
 				}
 				for (int i = 0; i < temp.n_block_comments; i++) {
-					temp.block_start_lens[i] = strlen(temp.block_start[i]);
-					temp.block_end_lens[i] = strlen(temp.block_end[i]);
+					temp.block_start_lens[i] =
+					 (uint8_t) strlen(temp.block_start[i]);
+					temp.block_end_lens[i] =
+					 (uint8_t) strlen(temp.block_end[i]);
 				}
 				g_langs[g_n_langs++] = temp;
 			}
@@ -293,13 +290,6 @@ static void load_languages(const unsigned char* data, size_t len, bool append)
 	}
 }
 
-/* -------------------------------------------------------------------------
- * build_lookup_table
- *
- * Called once after every load_languages() invocation.  Populates a sorted
- * ExtEntry array so find_language() can use bsearch (O(log n)) instead of
- * the original O(langs * extensions) double linear scan.
- * ------------------------------------------------------------------------- */
 static inline int ext_entry_cmp(const void* a, const void* b)
 {
 	return strcasecmp(((const ExtEntry*) a)->ext, ((const ExtEntry*) b)->ext);
