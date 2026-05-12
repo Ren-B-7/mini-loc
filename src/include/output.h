@@ -325,7 +325,8 @@ static inline void loc_print_json(const void* files_v, int n_files,
 {
 #define MAX_SUMS_JSON 1024
 	LocLangSum sums[MAX_SUMS_JSON];
-	long t_files, t_code, t_comm, t_blank;
+	long t_files = 0, t_code = 0, t_comm = 0, t_blank = 0;
+
 	int n_sums = loc__build_sums(files_v, n_files, n_langs, sums, MAX_SUMS_JSON,
 	 &t_files, &t_code, &t_comm, &t_blank);
 	long grand_total = t_code + t_comm + t_blank;
@@ -380,7 +381,7 @@ static inline void loc_print_json(const void* files_v, int n_files,
 			const char* ext = LOC__FR_EXT(files_v, i);
 			int li = LOC__FR_LANGIDX(files_v, i);
 			const char* lang =
-			 (li >= 0) ? LOC__LANG_NAME(langs_v, li) : "(unknown)";
+			 (li >= 0 && li < n_langs) ? LOC__LANG_NAME(langs_v, li) : "(unknown)";
 
 			char esc_path[4096], esc_lang[128];
 			loc__json_escape(path ? path : "", esc_path, sizeof(esc_path));
@@ -421,7 +422,8 @@ static inline void loc_print_html(const void* files_v, int n_files,
 {
 #define MAX_SUMS_HTML 1024
 	LocLangSum sums[MAX_SUMS_HTML];
-	long t_files, t_code, t_comm, t_blank;
+	long t_files = 0, t_code = 0, t_comm = 0, t_blank = 0;
+
 	int n_sums = loc__build_sums(files_v, n_files, n_langs, sums, MAX_SUMS_HTML,
 	 &t_files, &t_code, &t_comm, &t_blank);
 	long grand_total = t_code + t_comm + t_blank;
@@ -646,7 +648,8 @@ static inline void loc_print_sql(const void* files_v, int n_files,
 {
 #define MAX_SUMS_SQL 1024
 	LocLangSum sums[MAX_SUMS_SQL];
-	long t_files, t_code, t_comm, t_blank;
+	long t_files = 0, t_code = 0, t_comm = 0, t_blank = 0;
+
 	int n_sums = loc__build_sums(files_v, n_files, n_langs, sums, MAX_SUMS_SQL,
 	 &t_files, &t_code, &t_comm, &t_blank);
 	long grand_total = t_code + t_comm + t_blank;
@@ -716,7 +719,7 @@ static inline void loc_print_sql(const void* files_v, int n_files,
 			const char* ext = LOC__FR_EXT(files_v, i);
 			int li = LOC__FR_LANGIDX(files_v, i);
 			const char* lang =
-			 (li >= 0) ? LOC__LANG_NAME(langs_v, li) : "(unknown)";
+			 (li >= 0 && li < n_langs) ? LOC__LANG_NAME(langs_v, li) : "(unknown)";
 
 			char esc_path[4096], esc_ext[64], esc_lang[128];
 			loc__sql_escape(path ? path : "", esc_path, sizeof(esc_path));
