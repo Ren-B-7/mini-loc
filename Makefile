@@ -94,7 +94,7 @@ ALL_LDFLAGS = $(LDFLAGS) $(PGO_FLAGS)
 # Targets
 .PHONY: all clean run format lint check directories install uninstall build-json single multi pgo-gen optimized
 
-default: single multi
+default: directories single multi
 
 all: check build-json directories single multi
 
