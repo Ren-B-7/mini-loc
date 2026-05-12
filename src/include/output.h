@@ -566,9 +566,12 @@ static void loc_print_sql(const FileResult* files_v, int n_files,
 		 100.0 * (double) total / (double) grand_total :
 		 0.0;
 
-		printf("INSERT INTO loc_languages"
-		       " (run_id, language, files, code, comment, blank, total, pct)"
-		       " VALUES ('%s', '%s', %d, %" PRIu32 ", %" PRIu32 ", %" PRIu32 ", %ld, %.4f);\n",
+		printf(
+		 "INSERT INTO loc_languages"
+		 " (run_id, language, files, code, comment, blank, total, pct)"
+		 " VALUES ('%s', '%s', %d, %" PRIu32 ", %" PRIu32 ", %" PRIu32 ", %ld, "
+		 "%.4f);"
+		 "\n",
 		 ts, esc, sums[i].files, sums[i].counts.code, sums[i].counts.comment,
 		 sums[i].counts.blank, total, pct);
 	}
@@ -594,9 +597,11 @@ static void loc_print_sql(const FileResult* files_v, int n_files,
 			uint32_t blank = (files_v + i)->counts.blank;
 			uint32_t total = code + comment + blank;
 
-			printf("INSERT INTO loc_files"
-			       " (run_id, path, ext, language, code, comment, blank, total)"
-			       " VALUES ('%s', '%s', '%s', '%s', %" PRIu32 ", %" PRIu32 ", %" PRIu32 ", %" PRIu32 ");\n",
+			printf(
+			 "INSERT INTO loc_files"
+			 " (run_id, path, ext, language, code, comment, blank, total)"
+			 " VALUES ('%s', '%s', '%s', '%s', %" PRIu32 ", %" PRIu32
+			 ", %" PRIu32 ", %" PRIu32 ");\n",
 			 ts, esc_path, esc_ext, esc_lang, code, comment, blank, total);
 		}
 		printf("\n");
@@ -670,6 +675,7 @@ static inline void loc_print_terminal(const FileResult* files_v, int n_files,
 
 	printf("%-22s %7s %10s %7s %10s %10s %10s\n", "Language", "Files", "Code",
 	 "Pct", "Comment", "Blank", "Total");
+	printf("-------------------------------------------------------------\n");
 
 	for (int i = 0; i < n_sums; i++) {
 		long total =
@@ -696,9 +702,22 @@ static inline void loc_print_terminal(const FileResult* files_v, int n_files,
 		 LOC_TERM_RESET, LOC_TERM_GRAY, sums[i].counts.blank, LOC_TERM_RESET,
 		 total);
 	}
-
-	printf("%-22s %7ld %10ld %6.1f%% %10ld %10ld %10ld\n", "TOTAL", t_files,
+	printf("-------------------------------------------------------------\n");
+	printf("%-22s %7ld %10ld %6.1f%% %10ld %10ld %10ld\n\n", "TOTAL", t_files,
 	 t_code, 100.0, t_comment, t_blank, grand_total);
+
+	printf(
+	 "%-1s"
+	 "%s Code %3.1f%% %s|"
+	 "%s Comment %3.1f%% %s|"
+	 "%s Blank %3.1f%%%s\n",
+	 "Breakdown:", LOC_TERM_GREEN,
+	 (double) (100.0 * (double) t_code / (double) grand_total), LOC_TERM_RESET,
+	 LOC_TERM_YELLOW,
+	 (double) (100.0 * (double) t_comment / (double) grand_total),
+	 LOC_TERM_RESET, LOC_TERM_GRAY,
+	 (double) (100.0 * (double) t_blank / (double) grand_total),
+	 LOC_TERM_RESET);
 
 	free(sums);
 
