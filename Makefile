@@ -82,42 +82,57 @@ LDFLAGS = -Wl,-z,relro \
 # Optimization
 OPTFLAGS = -O3 -march=native -flto
 
+# PGO Support
+PGO_FLAGS =
+PGO_GEN_FLAGS = -fprofile-generate
+PGO_USE_FLAGS = -fprofile-use
+
 # Combine all flags
-ALL_CFLAGS = $(CFLAGS) $(HARDENING) $(OPTFLAGS) -pthread
+ALL_CFLAGS = $(CFLAGS) $(HARDENING) $(OPTFLAGS) $(PGO_FLAGS) -pthread
+ALL_LDFLAGS = $(LDFLAGS) $(PGO_FLAGS)
 
 # Targets
-.PHONY: all clean run format lint directories install uninstall build-json single multi pgo-gen optimized
+.PHONY: all clean run format lint check directories install uninstall build-json single multi pgo-gen optimized
 
-all: build-json format lint directories single multi
+all: check build-json directories single multi
+
+# Analysis and Formatting
+check: format lint
 
 # PGO Targets
-pgo-gen: build-json format lint clean directories
-	@echo "Building with profile generation..."
-	$(MAKE) ALL_CFLAGS="$(ALL_CFLAGS) -fprofile-generate" LDFLAGS="$(LDFLAGS) -fprofile-generate"
-	@mkdir $(PROFILE_DIR)
-	@echo "Run the binaries (e.g., './bin/loc-multi -r .') to generate profile data,"
-	@echo "then copy it to the 'profiles/' directory: 'mkdir -p profiles && cp build/*.gcda profiles/'"
+pgo-gen: build-json format clean directories
+	@echo "Building instrumented binaries for profile generation..."
+	@mkdir -p $(PROFILE_DIR)
+	$(MAKE) PGO_FLAGS="$(PGO_GEN_FLAGS)" single multi
+	@echo "Instrumented binaries built in $(BIN_DIR)/"
+	@echo "Run: ./bin/loc-multi -r <codebase>"
+	@echo "Then: cp $(BUILD_DIR)/*.gcda $(PROFILE_DIR)/"
 
 optimized: clean directories
-	@echo "Building with profile usage..."
-	@if [ -d $(PROFILE_DIR) ]; then \
+	@echo "Building optimized binaries using existing profiles..."
+	@if [ -d $(PROFILE_DIR) ] && [ "$$(ls -A $(PROFILE_DIR)/*.gcda 2>/dev/null)" ]; then \
 		cp $(PROFILE_DIR)/*.gcda $(BUILD_DIR)/; \
 	else \
-		echo "Error: 'profiles/' directory not found. Run 'make pgo-gen' first."; \
+		echo "Error: No profile data in $(PROFILE_DIR)/. Run 'make pgo-gen' first."; \
 		exit 1; \
 	fi
-	$(MAKE) ALL_CFLAGS="$(ALL_CFLAGS) -fprofile-use" LDFLAGS="$(LDFLAGS) -fprofile-use"
+	$(MAKE) PGO_FLAGS="$(PGO_USE_FLAGS)" single multi
+	@echo "Optimized binaries built in $(BIN_DIR)/. Ready for 'make install'."
+
+copy-optimized:
+	@mkdir -p $(PROFILE_DIR)
+	@cp $(BUILD_DIR)/*.gcda $(PROFILE_DIR)/;
 
 # Create output directories if they don't exist
 directories:
 	@mkdir -p $(BIN_DIR) $(BUILD_DIR)
 
 # Rules to compile .c files into .o files in the build/ directory
-$(BUILD_DIR)/mini-loc-single.o: src/mini-loc-single.c
+$(BUILD_DIR)/mini-loc-single.o: src/mini-loc-single.c src/include/languages_data.h
 	@echo "Compiling $< ..."
 	$(CC) $(ALL_CFLAGS) -c $< -o $@
 
-$(BUILD_DIR)/mini-loc-multi.o: src/mini-loc-multi.c
+$(BUILD_DIR)/mini-loc-multi.o: src/mini-loc-multi.c src/include/languages_data.h
 	@echo "Compiling $< ..."
 	$(CC) $(ALL_CFLAGS) -c $< -o $@
 
@@ -126,27 +141,24 @@ $(BUILD_DIR)/set.o: src/include/set.c
 	$(CC) $(ALL_CFLAGS) -c $< -o $@
 
 # Rules to link the executables in the bin/ directory
-single: directories build-json format $(EXECUTABLE_SINGLE)
+single: $(OBJ_SINGLE) $(OBJS_COMMON)
+	@echo "Linking $(EXECUTABLE_SINGLE) ..."
+	$(CC) $(ALL_CFLAGS) $(ALL_LDFLAGS) -o $(EXECUTABLE_SINGLE) $^ -lm -pthread
 
-$(EXECUTABLE_SINGLE): $(OBJ_SINGLE) $(OBJS_COMMON)
-	@echo "Linking $@ ..."
-	$(CC) $(ALL_CFLAGS) $(LDFLAGS) -o $@ $^ -lm -pthread
+multi: $(OBJ_MULTI) $(OBJS_COMMON)
+	@echo "Linking $(EXECUTABLE_MULTI) ..."
+	$(CC) $(ALL_CFLAGS) $(ALL_LDFLAGS) -o $(EXECUTABLE_MULTI) $^ -lm -pthread
 
-multi: directories build-json format $(EXECUTABLE_MULTI)
+build-json: src/include/languages_data.h
 
-$(EXECUTABLE_MULTI): $(OBJ_MULTI) $(OBJS_COMMON)
-	@echo "Linking $@ ..."
-	$(CC) $(ALL_CFLAGS) $(LDFLAGS) -o $@ $^ -lm -pthread
-
-build-json:
-	@echo "Creating language header"
+src/include/languages_data.h: assets/languages.json assets/convert_langs.py
+	@echo "Updating language header..."
 	@python ./assets/convert_langs.py
-	@echo "Created new language header"
 
 # Rule to clean up build artifacts
 clean:
 	@echo "Cleaning up build artifacts..."
-	@rm -rf $(BUILD_DIR) $(BIN_DIR) $(PROFILE_DIR)
+	@rm -rf $(BUILD_DIR) $(BIN_DIR)
 
 # Rule to run the executable (defaults to multi)
 run: multi
@@ -172,7 +184,7 @@ lint:
 INSTALL_DIR = $(HOME)/.local/bin
 
 # Install and uninstall targets
-install: single multi
+install: check-binaries
 	@echo "Select version to install as '$(TARGET_NAME)':"
 	@echo "1) Multi-threaded"
 	@echo "2) Single-threaded"
@@ -187,13 +199,20 @@ install: single multi
 		exit 1; \
 	fi
 
-install-multi: multi
+# Verify binaries exist before installing
+check-binaries:
+	@if [ ! -f $(EXECUTABLE_SINGLE) ] || [ ! -f $(EXECUTABLE_MULTI) ]; then \
+		echo "Error: Binaries not found in $(BIN_DIR)/. Please run 'make' or 'make optimized' first."; \
+		exit 1; \
+	fi
+
+install-multi:
 	@echo "Installing multi-threaded version to $(INSTALL_DIR)..."
 	@install -d $(INSTALL_DIR)
 	@install -m 755 $(EXECUTABLE_MULTI) $(INSTALL_DIR)/$(TARGET_NAME)
 	@echo "$(TARGET_NAME) installed successfully (multi-threaded)."
 
-install-single: single
+install-single:
 	@echo "Installing single-threaded version to $(INSTALL_DIR)..."
 	@install -d $(INSTALL_DIR)
 	@install -m 755 $(EXECUTABLE_SINGLE) $(INSTALL_DIR)/$(TARGET_NAME)
