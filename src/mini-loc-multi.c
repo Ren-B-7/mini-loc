@@ -18,7 +18,10 @@
 
 #include "include/languages_data.h"
 #include "include/minicli.h"
+#include "include/output.h"
 #include "include/set.h"
+
+static LocOutputFormat g_output_fmt = LOC_FMT_TERMINAL;
 
 /* -------------------------------------------------------------------------
  * Compile-time constants
@@ -55,6 +58,19 @@
 /* -------------------------------------------------------------------------
  * Data types
  * ------------------------------------------------------------------------- */
+#ifndef COUNTS_DEFINED
+#define COUNTS_DEFINED
+
+typedef struct {
+	long code;
+	long comment;
+	long blank;
+} Counts;
+#endif
+
+#ifndef LANGUAGE_DEFINED
+#define LANGUAGE_DEFINED
+
 typedef struct {
 	size_t line_comment_lens[MAX_LINE_COMMENTS];
 	size_t block_start_lens[MAX_BLOCK_COMMENTS];
@@ -69,12 +85,10 @@ typedef struct {
 	char block_end[MAX_BLOCK_COMMENTS][MAX_COMMENT_LEN];
 	char extensions[MAX_EXTENSIONS][MAX_EXT_LEN];
 } Language;
+#endif
 
-typedef struct {
-	long code;
-	long comment;
-	long blank;
-} Counts;
+#ifndef FILERESULT_DEFINED
+#define FILERESULT_DEFINED
 
 typedef struct {
 	char* path;
@@ -82,6 +96,7 @@ typedef struct {
 	int lang_idx;
 	Counts counts;
 } FileResult;
+#endif
 
 /* Extension → language index: sorted, searched with bsearch O(log n). */
 typedef struct {
@@ -897,7 +912,7 @@ static int lang_sum_cmp(const void* lang_sum_a, const void* lang_sum_b)
 	return 0;
 }
 
-static void print_report(FileResult* files, int n_files)
+static void print_report_terminal(FileResult* files, int n_files)
 {
 	if (n_files == 0) {
 		printf("mini-loc: no files processed.\n");
@@ -1010,6 +1025,22 @@ static void print_report(FileResult* files, int n_files)
 /* =========================================================================
  * CLI callbacks
  * ========================================================================= */
+static void cb_output_fmt(int argc, char** argv, void* user_data)
+{
+	if (argc > 0) {
+		if (strcmp(argv[0], "json") == 0) {
+			g_output_fmt = LOC_FMT_JSON;
+		} else if (strcmp(argv[0], "html") == 0) {
+			g_output_fmt = LOC_FMT_HTML;
+		} else if (strcmp(argv[0], "sql") == 0) {
+			g_output_fmt = LOC_FMT_SQL;
+		} else {
+			g_output_fmt = LOC_FMT_TERMINAL;
+		}
+	}
+	(void) user_data;
+}
+
 static void cb_verbose(int argc, char** argv, void* user_data)
 {
 	(void) argc;
@@ -1144,6 +1175,10 @@ int main(int argc, char** argv)
 	cli_add_argument(&parser,
 	 (CliArgument) {"--filter", NULL, "Filter output: code, comment, or blank",
 	     cb_filter, NULL});
+	cli_add_argument(&parser,
+	 (CliArgument) {"--output", "-o",
+	     "Output format: terminal (default), json, html, sql", cb_output_fmt,
+	     NULL});
 
 	/* --- Parse flags (no paths yet) --- */
 	if (argc >= 2) {
@@ -1160,7 +1195,9 @@ int main(int argc, char** argv)
 					 strcmp(argv[i], "--lang-file") == 0 ||
 					 strcmp(argv[i], "-a") == 0 ||
 					 strcmp(argv[i], "--append") == 0 ||
-					 strcmp(argv[i], "--filter") == 0) {
+					 strcmp(argv[i], "--filter") == 0 ||
+					 strcmp(argv[i], "--output") == 0 ||
+					 strcmp(argv[i], "-o") == 0) {
 						n_args = 1;
 					}
 					parser.registered_args[j].callback(n_args,
@@ -1252,7 +1289,9 @@ int main(int argc, char** argv)
 				 strcmp(argv[i], "--lang-file") == 0 ||
 				 strcmp(argv[i], "-a") == 0 ||
 				 strcmp(argv[i], "--append") == 0 ||
-				 strcmp(argv[i], "--filter") == 0) {
+				 strcmp(argv[i], "--filter") == 0 ||
+				 strcmp(argv[i], "--output") == 0 ||
+				 strcmp(argv[i], "-o") == 0) {
 					i++;
 				}
 				continue;
@@ -1305,7 +1344,12 @@ int main(int argc, char** argv)
 	free(states);
 
 	/* --- Report --- */
-	print_report(all_files, total_files);
+	if (g_output_fmt == LOC_FMT_TERMINAL) {
+		print_report_terminal(all_files, total_files);
+	} else {
+		loc_print_report(g_output_fmt, all_files, total_files, g_langs,
+		 g_n_langs, g_show_files, g_verbose);
+	}
 
 	/* --- Final cleanup --- */
 	if (all_files) {
