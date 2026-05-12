@@ -15,7 +15,7 @@ There are the make targets for `pgo-gen`, `copy-optimized`, and make `optimized`
 | **Linux Kernel** | ~1.1s           | ~0.21          |
 | **Node.js**      | ~0.5s           | ~0.1           |
 | **Ladybird**     | ~0.1s           | ~0.04          |
-| **Rust**         | ~0.3s           | ~0.8           |
+| **Rust**         | ~0.3s           | ~0.08           |
 | **Vscode**       | ~0.5s           | ~0.15          |
 | **Pi-hole**      | ~0.01s          | ~0.001         |
 
