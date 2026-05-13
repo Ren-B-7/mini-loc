@@ -11,11 +11,11 @@
 #include "include/types.h"
 
 typedef enum {
-    CHAR_NORMAL = 0,
-    CHAR_SPACE  = 1 << 0,
-    CHAR_SLASH  = 1 << 1,
-    CHAR_STAR   = 1 << 2,
-    CHAR_NEWLINE = 1 << 3,
+	CHAR_NORMAL = 0,
+	CHAR_SPACE = 1 << 0,
+	CHAR_SLASH = 1 << 1,
+	CHAR_STAR = 1 << 2,
+	CHAR_NEWLINE = 1 << 3,
 } CharType;
 
 static const uint8_t char_table[256] = {
@@ -127,7 +127,8 @@ Counts count_file(const char* path, int lang_idx)
 			c.code++;
 		} else {
 			char* p = cur;
-			while (p < line_end && (char_table[(unsigned char)*p] & CHAR_SPACE)) {
+			while (p < line_end &&
+			 (char_table[(unsigned char) *p] & CHAR_SPACE)) {
 				p++;
 			}
 

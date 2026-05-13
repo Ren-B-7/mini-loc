@@ -4,45 +4,62 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #include "include/types.h"
 
-void walk_dir(const char* path, bool recurse, FileCallback cb, void* user)
+static void walk_dir_recursive(const char* path, size_t path_len, bool recurse,
+ FileCallback cb, void* user)
 {
 	DIR* d = opendir(path);
 	if (!d) {
 		return;
 	}
+
+	char sub[PATH_BUF];
+	memcpy(sub, path, path_len);
+	sub[path_len] = '/';
+
 	struct dirent* entry;
 	while ((entry = readdir(d))) {
 		if (entry->d_name[0] == '.') {
 			continue;
 		}
-		char sub[PATH_BUF];
-		snprintf(sub, sizeof(sub), "%s/%s", path, entry->d_name);
-		switch (entry->d_type) {
-		case DT_REG:
+
+		size_t nlen = strlen(entry->d_name);
+		if (path_len + 1 + nlen >= PATH_BUF) {
+			continue;
+		}
+		memcpy(sub + path_len + 1, entry->d_name, nlen + 1);
+
+		if (entry->d_type == DT_REG) {
 			cb(sub, user);
-			break;
-		case DT_DIR:
-			if (recurse) {
-				walk_dir(sub, recurse, cb, user);
+		} else if (entry->d_type == DT_DIR && recurse) {
+			walk_dir_recursive(sub, path_len + 1 + nlen, recurse, cb, user);
+		} else if (entry->d_type == DT_UNKNOWN) {
+			struct stat st;
+			if (stat(sub, &st) == 0) {
+				if (S_ISREG(st.st_mode)) {
+					cb(sub, user);
+				} else if (S_ISDIR(st.st_mode) && recurse) {
+					walk_dir_recursive(sub, path_len + 1 + nlen, recurse, cb,
+					 user);
+				}
 			}
-			break;
-		default:
-			break;
 		}
 	}
 	closedir(d);
 }
 
+void walk_dir(const char* path, bool recurse, FileCallback cb, void* user)
+{
+	walk_dir_recursive(path, strlen(path), recurse, cb, user);
+}
+
 void process_path(const char* path, bool recurse, FileCallback cb, void* user)
 {
 	struct stat st;
-	if (lstat(path, &st) != 0) {
-		return;
-	}
-	if (S_ISLNK(st.st_mode)) {
+	if (stat(path, &st) != 0) {
 		return;
 	}
 	if (S_ISDIR(st.st_mode)) {
