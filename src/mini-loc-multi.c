@@ -409,19 +409,41 @@ static inline bool is_space_char(char c)
 	return space_table[(unsigned char) c];
 }
 
+#include <stddef.h>
+#include <stdint.h>
+
 static bool scan_for_end(const char* p, const char* line_end, const char* end,
  size_t end_len)
 {
-	char first = end[0];
-	while (p < line_end) {
-		const char* found = (const char*) memchr(p, (unsigned char) first,
+	if (end_len == 0) {
+		return true;
+	}
+	if (end_len == 1) {
+		const char* found = (const char*) memchr(p, (unsigned char) end[0],
 		 (size_t) (line_end - p));
+		return found != NULL;
+	}
+
+	char first = end[0];
+	while (p <= line_end - (ptrdiff_t) end_len) {
+		const char* found = (const char*) memchr(p, (unsigned char) first,
+		 (size_t) (line_end - p - end_len + 1));
 		if (!found) {
 			return false;
 		}
-		if ((size_t) (line_end - found) >= end_len &&
-		 memcmp(found, end, end_len) == 0) {
-			return true;
+
+		if (end_len == 2) {
+			if (*(const uint16_t*) found == *(const uint16_t*) end) {
+				return true;
+			}
+		} else if (end_len == 4) {
+			if (*(const uint32_t*) found == *(const uint32_t*) end) {
+				return true;
+			}
+		} else {
+			if (memcmp(found, end, end_len) == 0) {
+				return true;
+			}
 		}
 		p = found + 1;
 	}
