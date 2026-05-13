@@ -23,7 +23,7 @@ def run_bench(target, count=5):
 
     for i in range(count):
         print("Running: " + str(i + 1))
-        # Using -M for Topdown metrics, pinned to cores 0-1 with max priority
+        # Explicitly asking for events to ensure they appear in the output
         cmd = [
             "sudo",
             "taskset",
@@ -54,10 +54,17 @@ def run_bench(target, count=5):
 
         data["branches"].append(get_val(r"([\d,]+)\s+branches"))
         data["misses"].append(get_val(r"([\d,]+)\s+branch-misses"))
-        data["cycles"].append(get_val(r"([\d,]+)\s+cpu-cycles"))
+        data["cycles"].append(get_val(r"([\d,]+)\s+cycles"))
         data["instructions"].append(get_val(r"([\d,]+)\s+instructions"))
         data["page_faults"].append(get_val(r"([\d,]+)\s+page-faults"))
-        data["ipc"].append(get_val(r"([\d.]+)\s+insn_per_cycle"))
+        
+        # Calculate IPC from instructions/cycles
+        ins = data["instructions"][-1]
+        cyc = data["cycles"][-1]
+        data["ipc"].append(ins / cyc if cyc > 0 else 0.0)
+
+        # Extraction for Topdown
+        # Use the perf-calculated percentages directly from the output
         data["bad_speculation"].append(get_val(r"([\d.]+)\s+%\s+tma_bad_speculation"))
         data["backend_bound"].append(get_val(r"([\d.]+)\s+%\s+tma_backend_bound"))
         data["frontend_bound"].append(get_val(r"([\d.]+)\s+%\s+tma_frontend_bound"))
