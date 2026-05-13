@@ -77,4 +77,11 @@ typedef struct {
 	const char* ext;
 } LangLookupParams;
 
+typedef enum {
+	LOC_FMT_TERMINAL = 0, /* coloured ANSI table — the default */
+	LOC_FMT_JSON,
+	LOC_FMT_HTML,
+	LOC_FMT_SQL,
+} LocOutputFormat;
+
 #endif /* LOC_TYPES_H */

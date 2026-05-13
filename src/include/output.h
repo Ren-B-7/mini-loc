@@ -58,13 +58,6 @@ typedef struct {
 	Counts counts;
 } LocLangSum;
 
-typedef enum {
-	LOC_FMT_TERMINAL = 0, /* coloured ANSI table — the default */
-	LOC_FMT_JSON,
-	LOC_FMT_HTML,
-	LOC_FMT_SQL,
-} LocOutputFormat;
-
 /*
  * loc_print_report
  *
@@ -79,16 +72,16 @@ typedef enum {
  *   show_files — whether per-file rows should be included
  *   verbose    — whether the extension column should be shown (terminal / HTML)
  */
-static inline void loc_print_report(LocOutputFormat fmt,
- const FileResult* files, int n_files, const Language* langs, int n_langs,
- bool show_files, bool verbose);
+static void loc_print_report(LocOutputFormat fmt, const FileResult* files,
+ int n_files, const Language* langs, int n_langs, bool show_files,
+ bool verbose);
 
 /* Individual formatters — all static inline so they are inlined into the
  * single compilation unit that #includes this header, producing zero link-time
  * symbol conflicts between single and multi. */
 static void loc_print_json(const FileResult* files, int n_files,
  const Language* langs, int n_langs, bool show_files);
-static inline void loc_print_html(const FileResult* files, int n_files,
+static void loc_print_html(const FileResult* files, int n_files,
  const Language* langs, int n_langs, bool show_files, bool verbose);
 static void loc_print_sql(const FileResult* files, int n_files,
  const Language* langs, int n_langs, bool show_files);
@@ -371,7 +364,7 @@ static void loc_print_json(const FileResult* files_v, int n_files,
  * HTML formatter
  */
 
-static inline void loc_print_html(const FileResult* files_v, int n_files,
+static void loc_print_html(const FileResult* files_v, int n_files,
  const Language* langs_v, int n_langs, bool show_files, bool verbose)
 {
 	(void) verbose;
@@ -729,9 +722,8 @@ static inline void loc_print_terminal(const FileResult* files_v, int n_files,
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
-static inline void loc_print_report(LocOutputFormat fmt,
- const FileResult* files, int n_files, const Language* langs, int n_langs,
- bool show_files, bool verbose)
+static void loc_print_report(LocOutputFormat fmt, const FileResult* files,
+ int n_files, const Language* langs, int n_langs, bool show_files, bool verbose)
 {
 	switch (fmt) {
 	case LOC_FMT_JSON:

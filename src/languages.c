@@ -10,7 +10,6 @@
 
 #include "include/languages_data.h"
 #include "include/minicli.h"
-#include "include/output.h"
 #include "include/set.h"
 #include "include/types.h"
 

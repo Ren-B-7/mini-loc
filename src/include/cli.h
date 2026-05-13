@@ -3,7 +3,7 @@
 
 #include <stdbool.h>
 
-#include "output.h"
+#include "types.h"
 
 typedef struct {
 	bool recurse;
