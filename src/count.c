@@ -10,18 +10,24 @@
 #include "include/languages.h"
 #include "include/types.h"
 
-static inline bool is_space_char(char c)
-{
-	static const bool space_table[256] = {
-	    [' '] = true,
-	    ['\t'] = true,
-	    ['\n'] = true,
-	    ['\r'] = true,
-	    ['\v'] = true,
-	    ['\f'] = true,
-	};
-	return space_table[(unsigned char) c];
-}
+typedef enum {
+    CHAR_NORMAL = 0,
+    CHAR_SPACE  = 1 << 0,
+    CHAR_SLASH  = 1 << 1,
+    CHAR_STAR   = 1 << 2,
+    CHAR_NEWLINE = 1 << 3,
+} CharType;
+
+static const uint8_t char_table[256] = {
+    [' '] = CHAR_SPACE,
+    ['\t'] = CHAR_SPACE,
+    ['\n'] = CHAR_NEWLINE,
+    ['\r'] = CHAR_SPACE,
+    ['\v'] = CHAR_SPACE,
+    ['\f'] = CHAR_SPACE,
+    ['/'] = CHAR_SLASH,
+    ['*'] = CHAR_STAR,
+};
 
 bool scan_for_end(const char* p, const char* line_end, const char* end,
  size_t end_len)
@@ -74,7 +80,7 @@ bool scan_for_end(const char* p, const char* line_end, const char* end,
 
 Counts count_file(const char* path, int lang_idx)
 {
-	Counts c = {0, 0, 0};
+	Counts c = {0};
 	FILE* f = fopen(path, "rb");
 	if (!f) {
 		return c;
@@ -121,7 +127,7 @@ Counts count_file(const char* path, int lang_idx)
 			c.code++;
 		} else {
 			char* p = cur;
-			while (p < line_end && is_space_char(*p)) {
+			while (p < line_end && (char_table[(unsigned char)*p] & CHAR_SPACE)) {
 				p++;
 			}
 
