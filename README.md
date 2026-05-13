@@ -4,7 +4,7 @@
 
 ## Code and Speed Attribution
 
-A big thank you to [Ben Boyter](https://github.com/boyter/scc/), and his write up on the speed improvements of his tool [SCC](https://github.com/boyter/scc/) (It is far more stable and ci ready than mine ever will be). And for allowing me to make use of his far more encompassing and better done [languages.json](https://github.com/boyter/scc/blob/master/languages.json) in the use of this project. Furthermore he even pointed out flaws in my file reading, which lead to inaccurate readings and where i should focus for speed gains.
+A big thank you to [Ben Boyter](https://github.com/boyter/scc/), and his write up on the speed improvements of his tool [SCC](https://github.com/boyter/scc/) (It is far more stable and ci ready than mine will ever be). And for allowing me to make use of his far more encompassing and better done [languages.json](https://github.com/boyter/scc/blob/master/languages.json) in the use of this project. Furthermore he even pointed out flaws in my file reading, which lead to inaccurate readings and where i should focus for speed gains.
 
 ## Performance
 
