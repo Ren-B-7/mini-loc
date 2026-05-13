@@ -17,7 +17,7 @@
  * Shared constants
  */
 #define MAX_EXT_LEN 32
-#define MAX_LANGS 512
+#define MAX_LANGS 1024
 
 #define MAX_COMMENT_LEN 16
 #define MAX_LINE_COMMENTS 8
