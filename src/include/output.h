@@ -96,8 +96,8 @@ loc_print_terminal(const FileResult* files, int n_files, const Language* langs,
  * Returns the number of entries written into out_sums (≤ max_sums).
  * Also writes grand totals into *t_files, *t_code, *t_comm, *t_blank. */
 static __attribute__((cold)) int loc__build_sums(const FileResult* files_v,
- int n_files, int n_langs, LocLangSum* out_sums, int max_sums, long* t_files,
- long* t_code, long* t_comm, long* t_blank);
+ LocSumParams params, LocLangSum* out_sums, long* t_files, long* t_code,
+ long* t_comm, long* t_blank);
 
 /* qsort comparator — sort by total descending */
 static inline __attribute__((cold)) int
@@ -214,14 +214,13 @@ static inline __attribute__((cold)) void loc__iso8601_now(char* buf, size_t len)
 #define LOC_TERM_GRAY "\033[90m"
 
 /* Build summary table */
-
-static int loc__build_sums(const FileResult* files_v, int num_files,
- int num_langs, LocLangSum* out_sums, int max_sums, long* t_files, long* t_code,
- long* t_comm, long* t_blank)
+static int loc__build_sums(const FileResult* files_v, LocSumParams params,
+ LocLangSum* out_sums, long* t_files, long* t_code, long* t_comm, long* t_blank)
 {
 	/* lang_to_sum_idx maps (lang_idx+1) → position in out_sums.
 	 * Using a stack array since MAX_LANGS is small. */
-	int map_size = num_langs + 2; /* +1 for the sentinel, +1 for unknown(-1) */
+	int map_size = params.num_langs + 2; /* +1 for the sentinel, +1 for
+	                                        unknown(-1) */
 	int lang_to_sum[MAX_LANGS + 2];
 	if (map_size > (int) (sizeof(lang_to_sum) / sizeof(int))) {
 		return 0;
@@ -233,7 +232,7 @@ static int loc__build_sums(const FileResult* files_v, int num_files,
 	int n_sums = 0;
 	*t_files = *t_code = *t_comm = *t_blank = 0;
 
-	for (int i = 0; i < num_files; i++) {
+	for (int i = 0; i < params.num_files; i++) {
 		int li = (files_v + i)->lang_idx;
 		int map_idx = li + 1; /* -1 → 0, 0 → 1, … */
 		if (map_idx < 0 || map_idx >= map_size) {
@@ -242,7 +241,7 @@ static int loc__build_sums(const FileResult* files_v, int num_files,
 
 		int found = lang_to_sum[map_idx];
 		if (found == -1) {
-			if (n_sums >= max_sums) {
+			if (n_sums >= params.max_sums) {
 				continue;
 			}
 			found = n_sums++;
@@ -281,8 +280,9 @@ static void loc_print_json(const FileResult* files_v, int n_files,
 	LocLangSum sums[MAX_SUMS_JSON];
 	long t_files = 0, t_code = 0, t_comm = 0, t_blank = 0;
 
-	int n_sums = loc__build_sums(files_v, n_files, n_langs, sums, MAX_SUMS_JSON,
-	 &t_files, &t_code, &t_comm, &t_blank);
+	int n_sums = loc__build_sums(files_v,
+	 (LocSumParams) {n_files, n_langs, MAX_SUMS_JSON}, sums, &t_files, &t_code,
+	 &t_comm, &t_blank);
 	long grand_total = t_code + t_comm + t_blank;
 
 	char esc[1024];
@@ -388,8 +388,9 @@ static void loc_print_html(const FileResult* files_v, int n_files,
 	long t_comment = 0;
 	long t_blank = 0;
 
-	int n_sums = loc__build_sums(files_v, n_files, n_langs, sums, MAX_SUMS_HTML,
-	 &t_files, &t_code, &t_comment, &t_blank);
+	int n_sums = loc__build_sums(files_v,
+	 (LocSumParams) {n_files, n_langs, MAX_SUMS_HTML}, sums, &t_files, &t_code,
+	 &t_comment, &t_blank);
 
 	long grand_total = t_code + t_comment + t_blank;
 
@@ -512,8 +513,10 @@ static void loc_print_sql(const FileResult* files_v, int n_files,
 	LocLangSum sums[MAX_SUMS_SQL];
 	long t_files = 0, t_code = 0, t_comm = 0, t_blank = 0;
 
-	int n_sums = loc__build_sums(files_v, n_files, n_langs, sums, MAX_SUMS_SQL,
-	 &t_files, &t_code, &t_comm, &t_blank);
+	int n_sums = loc__build_sums(files_v,
+	 (LocSumParams) {n_files, n_langs, MAX_SUMS_SQL}, sums, &t_files, &t_code,
+	 &t_comm, &t_blank);
+
 	long grand_total = t_code + t_comm + t_blank;
 
 	char ts[32];
@@ -634,8 +637,9 @@ static inline void loc_print_terminal(const FileResult* files_v, int n_files,
 	long t_comment = 0;
 	long t_blank = 0;
 
-	int n_sums = loc__build_sums(files_v, n_files, n_langs, sums, MAX_SUMS_TERM,
-	 &t_files, &t_code, &t_comment, &t_blank);
+	int n_sums = loc__build_sums(files_v,
+	 (LocSumParams) {n_files, n_langs, MAX_SUMS_TERM}, sums, &t_files, &t_code,
+	 &t_comment, &t_blank);
 
 	long grand_total = t_code + t_comment + t_blank;
 

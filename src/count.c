@@ -11,76 +11,80 @@
 #include "include/types.h"
 
 typedef enum {
-	CHAR_NORMAL = 0,
-	CHAR_SPACE = 1 << 0,
-	CHAR_SLASH = 1 << 1,
-	CHAR_STAR = 1 << 2,
-	CHAR_NEWLINE = 1 << 3,
-} CharType;
+	CHAR_NONE = 0,
+	CHAR_NEWLINE = 1 << 0,
+	CHAR_WHITESPACE = 1 << 1,
+	CHAR_SLASH = 1 << 2,
+	CHAR_STAR = 1 << 3,
+	CHAR_QUOTE = 1 << 4,
+	CHAR_BACKSLASH = 1 << 5,
+} CharFlags;
 
 static const uint8_t char_table[256] = {
-    [' '] = CHAR_SPACE,
-    ['\t'] = CHAR_SPACE,
+    [' '] = CHAR_WHITESPACE,
+    ['\t'] = CHAR_WHITESPACE,
+    ['\r'] = CHAR_WHITESPACE,
+    ['\v'] = CHAR_WHITESPACE,
+    ['\f'] = CHAR_WHITESPACE,
     ['\n'] = CHAR_NEWLINE,
-    ['\r'] = CHAR_SPACE,
-    ['\v'] = CHAR_SPACE,
-    ['\f'] = CHAR_SPACE,
+
     ['/'] = CHAR_SLASH,
     ['*'] = CHAR_STAR,
+
+    ['"'] = CHAR_QUOTE,
+    ['\''] = CHAR_QUOTE,
+
+    ['\\'] = CHAR_BACKSLASH,
 };
 
-bool scan_for_end(const char* p, const char* line_end, const char* end,
- size_t end_len)
+static inline bool is_whitespace(unsigned char c)
 {
-	if (end_len == 0) {
-		return true;
-	}
-	if (end_len == 1) {
-		const char* found = (const char*) memchr(p, (unsigned char) end[0],
-		 (size_t) (line_end - p));
-		return found != NULL;
+	return (char_table[c] & CHAR_WHITESPACE) != 0;
+}
+
+static inline bool
+match_token(const char* p, const char* end, const char* token, uint8_t len)
+{
+	if ((size_t) (end - p) < len) {
+		return false;
 	}
 
-	char first = end[0];
-	while (p <= line_end - (ptrdiff_t) end_len) {
-		ptrdiff_t remaining = line_end - p - (ptrdiff_t) end_len + 1;
-		if (remaining <= 0) {
-			break;
-		}
+	switch (len) {
+	case 1:
+		return p[0] == token[0];
 
-		const char* found =
-		 (const char*) memchr(p, (unsigned char) first, (size_t) remaining);
-		if (!found) {
-			return false;
-		}
+	case 2:
+		return *(const uint16_t*) p == *(const uint16_t*) token;
 
-		if (end_len == 2) {
-			uint16_t v1, v2;
-			memcpy(&v1, found, 2);
-			memcpy(&v2, end, 2);
-			if (v1 == v2) {
-				return true;
-			}
-		} else if (end_len == 4) {
-			uint32_t v1, v2;
-			memcpy(&v1, found, 4);
-			memcpy(&v2, end, 4);
-			if (v1 == v2) {
-				return true;
-			}
-		} else {
-			if (memcmp(found, end, end_len) == 0) {
-				return true;
-			}
-		}
-		p = found + 1;
+	case 4:
+		return *(const uint32_t*) p == *(const uint32_t*) token;
+
+	case 8:
+		return *(const uint64_t*) p == *(const uint64_t*) token;
+
+	default:
+		return memcmp(p, token, len) == 0;
 	}
-	return false;
+}
+
+static inline void finalize_line(Scanner* s, Counts* c)
+{
+	if (!s->line_has_code && !s->line_has_comment) {
+		c->blank++;
+	} else if (s->line_has_code) {
+		c->code++;
+	} else {
+		c->comment++;
+	}
+
+	s->line_has_code = false;
+	s->line_has_comment = false;
 }
 
 Counts count_file(const char* path, int lang_idx)
 {
 	Counts c = {0};
+
 	FILE* f = fopen(path, "rb");
 	if (!f) {
 		return c;
@@ -90,96 +94,233 @@ Counts count_file(const char* path, int lang_idx)
 		fclose(f);
 		return c;
 	}
+
 	long file_len = ftell(f);
-	if (file_len < 0 || file_len >= MAX_FILE_SIZE) {
+
+	if (file_len <= 0 || file_len >= MAX_FILE_SIZE) {
 		fclose(f);
 		return c;
 	}
+
 	if (fseek(f, 0, SEEK_SET) != 0) {
 		fclose(f);
 		return c;
 	}
 
-	size_t buf_size = (size_t) file_len + 1;
-	char* buf = (char*) malloc(buf_size);
+	size_t size = (size_t) file_len;
+
+	char* buf = (char*) malloc(size + 1);
+
 	if (!buf) {
 		fclose(f);
 		return c;
 	}
-	size_t nread = fread(buf, 1, (size_t) file_len, f);
+
+	size_t nread = fread(buf, 1, size - 1, f);
 	fclose(f);
-	if (nread >= buf_size) {
-		nread = buf_size - 1;
+
+	buf[nread] = '\0';
+
+	Language* lang = (lang_idx >= 0) ? &g_langs[lang_idx] : NULL;
+
+	if (!lang) {
+		free(buf);
+		return c;
 	}
 
-	Language* l = (lang_idx >= 0) ? &g_langs[lang_idx] : NULL;
-	bool in_block = false;
-	int block_idx = -1;
+	Scanner s = {0};
 
-	char* file_end = buf + nread;
-	char* cur = buf;
+	const char* p = buf;
+	const char* end = buf + nread;
 
-	while (cur < file_end) {
-		char* lf = (char*) memchr(cur, '\n', (size_t) (file_end - cur));
-		char* line_end = lf ? lf : file_end;
+	while (p < end) {
+		unsigned char ch = (unsigned char) *p;
 
-		if (l == NULL) {
-			c.code++;
-		} else {
-			char* p = cur;
-			while (p < line_end &&
-			 (char_table[(unsigned char) *p] & CHAR_SPACE)) {
-				p++;
+		switch (s.state) {
+		case SCAN_NORMAL: {
+			bool matched = false;
+
+			/*
+			 * Fast whitespace path
+			 */
+			if (is_whitespace(ch)) {
+				break;
 			}
 
-			if (p == line_end) {
-				c.blank++;
-			} else {
-				bool is_comment = false;
-				if (in_block) {
-					is_comment = true;
-					if (scan_for_end(p, line_end, l->block_end[block_idx],
-					     l->block_end_lens[block_idx])) {
-						in_block = false;
-					}
-				} else {
-					for (int i = 0; i < l->n_line_comments; i++) {
-						size_t clen = l->line_comment_lens[i];
-						if ((size_t) (line_end - p) >= clen &&
-						 p[0] == l->line_comments[i][0] &&
-						 memcmp(p, l->line_comments[i], clen) == 0) {
-							is_comment = true;
-							break;
-						}
-					}
+			/*
+			 * Quote handling
+			 */
+			for (uint16_t i = 0; i < lang->n_quotes; i++) {
+				QuoteRule* q = &lang->quotes[i];
 
-					if (!is_comment) {
-						for (int i = 0; i < l->n_block_comments; i++) {
-							size_t clen = l->block_start_lens[i];
-							if ((size_t) (line_end - p) >= clen &&
-							 p[0] == l->block_start[i][0] &&
-							 memcmp(p, l->block_start[i], clen) == 0) {
-								is_comment = true;
-								if (!scan_for_end(p + clen, line_end,
-								     l->block_end[i], l->block_end_lens[i])) {
-									in_block = true;
-									block_idx = i;
-								}
-								break;
-							}
-						}
-					}
+				if (q->start[0] != *p) {
+					continue;
 				}
 
-				if (is_comment) {
-					c.comment++;
-				} else {
-					c.code++;
+				if (match_token(p, end, q->start, q->start_len)) {
+					s.state = SCAN_STRING;
+					s.quote_index = i;
+					s.line_has_code = true;
+
+					p += q->start_len - 1;
+
+					matched = true;
+					break;
 				}
+			}
+
+			if (matched) {
+				break;
+			}
+
+			/*
+			 * Line comments
+			 */
+			for (uint16_t i = 0; i < lang->n_line_comments; i++) {
+				LineCommentRule* lc = &lang->line_comments[i];
+
+				if (lc->start[0] != *p) {
+					continue;
+				}
+
+				if (match_token(p, end, lc->start, lc->len)) {
+					s.state = SCAN_LINE_COMMENT;
+					s.line_has_comment = true;
+
+					p += lc->len - 1;
+
+					matched = true;
+					break;
+				}
+			}
+
+			if (matched) {
+				break;
+			}
+
+			/*
+			 * Block comments
+			 */
+			for (uint16_t i = 0; i < lang->n_multi_line; i++) {
+				MultiLineRule* ml = &lang->multi_line[i];
+
+				if (ml->start[0] != *p) {
+					continue;
+				}
+
+				if (match_token(p, end, ml->start, ml->start_len)) {
+					s.state = SCAN_BLOCK_COMMENT;
+					s.block_index = i;
+					s.block_depth = 1;
+					s.line_has_comment = true;
+
+					p += ml->start_len - 1;
+
+					matched = true;
+					break;
+				}
+			}
+
+			if (matched) {
+				break;
+			}
+
+			/*
+			 * Everything else is code
+			 */
+			s.line_has_code = true;
+
+			break;
+		}
+
+		case SCAN_LINE_COMMENT:
+
+			s.line_has_comment = true;
+
+			break;
+
+		case SCAN_BLOCK_COMMENT: {
+			s.line_has_comment = true;
+
+			MultiLineRule* ml = &lang->multi_line[s.block_index];
+
+			/*
+			 * Nested comments
+			 */
+			if (ml->nested && *p == ml->start[0] &&
+			 match_token(p, end, ml->start, ml->start_len)) {
+				s.block_depth++;
+
+				p += ml->start_len - 1;
+
+				break;
+			}
+
+			/*
+			 * Comment end
+			 */
+			if (*p == ml->end[0] && match_token(p, end, ml->end, ml->end_len)) {
+				s.block_depth--;
+
+				p += ml->end_len - 1;
+
+				if (s.block_depth == 0) {
+					s.state = SCAN_NORMAL;
+				}
+			}
+
+			break;
+		}
+
+		case SCAN_STRING: {
+			QuoteRule* q = &lang->quotes[s.quote_index];
+
+			s.line_has_code = true;
+
+			/*
+			 * Escape sequence
+			 */
+			if (q->escape && (char_table[ch] & CHAR_BACKSLASH) && p + 1 < end) {
+				p++;
+
+				break;
+			}
+
+			/*
+			 * String end
+			 */
+			if (*p == q->end[0] && match_token(p, end, q->end, q->end_len)) {
+				p += q->end_len - 1;
+
+				s.state = SCAN_NORMAL;
+			}
+
+			break;
+		}
+		}
+
+		/*
+		 * Newline handling
+		 */
+		if (char_table[ch] & CHAR_NEWLINE) {
+			finalize_line(&s, &c);
+
+			if (s.state == SCAN_LINE_COMMENT) {
+				s.state = SCAN_NORMAL;
 			}
 		}
-		cur = lf ? lf + 1 : file_end;
+
+		p++;
 	}
+
+	/*
+	 * Final line without trailing newline
+	 */
+	if (s.line_has_code || s.line_has_comment) {
+		finalize_line(&s, &c);
+	}
+
 	free(buf);
+
 	return c;
 }

@@ -18,13 +18,20 @@
  */
 #define MAX_EXT_LEN 32
 #define MAX_LANGS 512
+
 #define MAX_COMMENT_LEN 16
 #define MAX_LINE_COMMENTS 8
 #define MAX_BLOCK_COMMENTS 8
+#define MAX_QUOTES 16
+
 #define MAX_LANG_NAME_LEN 32
 #define MAX_EXTENSIONS 32
+
 #define PATH_BUF 4096
 #define MAX_FILE_SIZE (1024L * 1024L)
+
+#define MAX_COMPLEXITY_CHECKS 64
+#define MAX_COMPLEXITY_LEN 32
 
 /* 12 Bytes instead of 24 */
 typedef struct {
@@ -35,25 +42,75 @@ typedef struct {
 } Counts;
 
 /* Reordered the struct to be by cache and with slightly better alignment */
+
+typedef struct {
+	char start[MAX_COMMENT_LEN];
+	char end[MAX_COMMENT_LEN];
+
+	uint8_t start_len;
+	uint8_t end_len;
+
+	bool nested;
+} MultiLineRule;
+
+typedef struct {
+	char start[MAX_COMMENT_LEN];
+	uint8_t len;
+} LineCommentRule;
+
+typedef struct {
+	char start[8];
+	char end[8];
+
+	uint8_t start_len;
+	uint8_t end_len;
+
+	bool escape;
+	bool multiline;
+} QuoteRule;
+
+typedef struct {
+	char token[MAX_COMPLEXITY_LEN];
+	uint8_t len;
+} ComplexityRule;
+
 typedef struct {
 	char name[MAX_LANG_NAME_LEN];
 
-	int32_t n_extensions;
-	int32_t n_line_comments;
-	int32_t n_block_comments;
-
 	bool data_only;
 
-	char line_comments[MAX_LINE_COMMENTS][MAX_COMMENT_LEN];
-	char block_start[MAX_BLOCK_COMMENTS][MAX_COMMENT_LEN];
-	char block_end[MAX_BLOCK_COMMENTS][MAX_COMMENT_LEN];
+	uint16_t n_extensions;
+	uint16_t n_line_comments;
+	uint16_t n_multi_line;
+	uint16_t n_quotes;
+
 	char extensions[MAX_EXTENSIONS][MAX_EXT_LEN];
 
-	uint8_t line_comment_lens[MAX_LINE_COMMENTS];
-	uint8_t block_start_lens[MAX_BLOCK_COMMENTS];
-	uint8_t block_end_lens[MAX_BLOCK_COMMENTS];
+	LineCommentRule line_comments[MAX_LINE_COMMENTS];
+	MultiLineRule multi_line[MAX_BLOCK_COMMENTS];
+	QuoteRule quotes[16];
+	ComplexityRule complexity[MAX_COMPLEXITY_CHECKS];
 
 } Language;
+
+typedef enum {
+	SCAN_NORMAL = 0,
+	SCAN_LINE_COMMENT,
+	SCAN_BLOCK_COMMENT,
+	SCAN_STRING,
+} ScanState;
+
+typedef struct {
+	ScanState state;
+
+	int block_index;
+	int quote_index;
+
+	uint16_t block_depth;
+
+	bool line_has_code;
+	bool line_has_comment;
+} Scanner;
 
 /* ext becomes const because it wont change retroactively */
 /* Counts is now down to 12 bytes from 24, this changes the setup such that
@@ -77,6 +134,12 @@ typedef struct {
 	const char* path;
 	const char* ext;
 } LangLookupParams;
+
+typedef struct {
+	int num_files;
+	int num_langs;
+	int max_sums;
+} LocSumParams;
 
 typedef enum {
 	LOC_FMT_TERMINAL = 0, /* coloured ANSI table — the default */
