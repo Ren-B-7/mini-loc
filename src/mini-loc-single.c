@@ -42,7 +42,7 @@ static void process_file_cb(const char* path, void* user)
 	fr->counts = count_file(path, li);
 }
 
-int main(int argc, char** argv)
+__attribute__((cold)) int main(int argc, char** argv)
 {
 	loc_config_init(&g_cfg);
 	parse_cli(&g_cfg, argc, argv);

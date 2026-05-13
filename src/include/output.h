@@ -72,33 +72,36 @@ typedef struct {
  *   show_files — whether per-file rows should be included
  *   verbose    — whether the extension column should be shown (terminal / HTML)
  */
-static void loc_print_report(LocOutputFormat fmt, const FileResult* files,
- int n_files, const Language* langs, int n_langs, bool show_files,
- bool verbose);
+static __attribute__((cold)) void loc_print_report(LocOutputFormat fmt,
+ const FileResult* files, int n_files, const Language* langs, int n_langs,
+ bool show_files, bool verbose);
 
 /* Individual formatters — all static inline so they are inlined into the
  * single compilation unit that #includes this header, producing zero link-time
  * symbol conflicts between single and multi. */
-static void loc_print_json(const FileResult* files, int n_files,
- const Language* langs, int n_langs, bool show_files);
-static void loc_print_html(const FileResult* files, int n_files,
- const Language* langs, int n_langs, bool show_files, bool verbose);
-static void loc_print_sql(const FileResult* files, int n_files,
- const Language* langs, int n_langs, bool show_files);
-static inline void loc_print_terminal(const FileResult* files, int n_files,
- const Language* langs, int n_langs, bool show_files, bool verbose);
+static __attribute__((cold)) void loc_print_json(const FileResult* files,
+ int n_files, const Language* langs, int n_langs, bool show_files);
+static __attribute__((cold)) void loc_print_html(const FileResult* files,
+ int n_files, const Language* langs, int n_langs, bool show_files,
+ bool verbose);
+static __attribute__((cold)) void loc_print_sql(const FileResult* files,
+ int n_files, const Language* langs, int n_langs, bool show_files);
+static inline __attribute__((cold)) void
+loc_print_terminal(const FileResult* files, int n_files, const Language* langs,
+ int n_langs, bool show_files, bool verbose);
 
 /* Internal helpers */
 
 /* Build the per-language summary table from a flat FileResult array.
  * Returns the number of entries written into out_sums (≤ max_sums).
  * Also writes grand totals into *t_files, *t_code, *t_comm, *t_blank. */
-static int loc__build_sums(const FileResult* files_v, int n_files, int n_langs,
- LocLangSum* out_sums, int max_sums, long* t_files, long* t_code, long* t_comm,
- long* t_blank);
+static __attribute__((cold)) int loc__build_sums(const FileResult* files_v,
+ int n_files, int n_langs, LocLangSum* out_sums, int max_sums, long* t_files,
+ long* t_code, long* t_comm, long* t_blank);
 
 /* qsort comparator — sort by total descending */
-static inline int loc__sum_cmp(const void* a, const void* b)
+static inline __attribute__((cold)) int
+loc__sum_cmp(const void* a, const void* b)
 {
 	const LocLangSum* la = (const LocLangSum*) a;
 	const LocLangSum* lb = (const LocLangSum*) b;
@@ -108,7 +111,8 @@ static inline int loc__sum_cmp(const void* a, const void* b)
 }
 
 /* Escape a string for JSON: replace " -> \" and \ -> \\ in-place into buf. */
-static inline void loc__json_escape(const char* src, char* buf, size_t len)
+static __attribute__((cold)) void
+loc__json_escape(const char* src, char* buf, size_t len)
 {
 	size_t j = 0;
 	for (size_t i = 0; src[i] && j + 2 < len; i++) {
@@ -121,7 +125,8 @@ static inline void loc__json_escape(const char* src, char* buf, size_t len)
 }
 
 /* Escape a string for HTML: replace &, <, >, " with entities. */
-static inline void loc__html_escape(const char* src, char* buf, size_t len)
+static __attribute__((cold)) void
+loc__html_escape(const char* src, char* buf, size_t len)
 {
 	size_t j = 0;
 	for (size_t i = 0; src[i] && j + 8 < len; i++) {
@@ -155,7 +160,8 @@ static inline void loc__html_escape(const char* src, char* buf, size_t len)
 }
 
 /* SQL single-quote escaping: replace ' -> '' (ANSI SQL standard). */
-static inline void loc__sql_escape(const char* src, char* buf, size_t len)
+static __attribute__((cold)) void
+loc__sql_escape(const char* src, char* buf, size_t len)
 {
 	size_t j = 0;
 	for (size_t i = 0; src[i] && j + 2 < len; i++) {
@@ -168,7 +174,7 @@ static inline void loc__sql_escape(const char* src, char* buf, size_t len)
 }
 
 /* Generate an ISO-8601 UTC timestamp: "2025-05-12T14:30:00Z" */
-static inline void loc__iso8601_now(char* buf, size_t len)
+static inline __attribute__((cold)) void loc__iso8601_now(char* buf, size_t len)
 {
 	time_t t = time(NULL);
 	struct tm* gm = gmtime(&t);

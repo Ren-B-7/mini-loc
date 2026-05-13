@@ -2,13 +2,13 @@
 
 #include <string.h>
 
-void loc_config_init(LocConfig* cfg)
+__attribute__((cold)) void loc_config_init(LocConfig* cfg)
 {
 	memset(cfg, 0, sizeof(LocConfig));
 	cfg->output_fmt = LOC_FMT_TERMINAL;
 }
 
-void parse_cli(LocConfig* cfg, int argc, char** argv)
+__attribute__((cold)) void parse_cli(LocConfig* cfg, int argc, char** argv)
 {
 	for (int i = 1; i < argc; i++) {
 		if (strcmp(argv[i], "-r") == 0 || strcmp(argv[i], "--recurse") == 0) {

@@ -63,7 +63,7 @@ static void* worker(void* arg)
 	return NULL;
 }
 
-int main(int argc, char** argv)
+__attribute__((cold)) int main(int argc, char** argv)
 {
 	loc_config_init(&g_cfg);
 	parse_cli(&g_cfg, argc, argv);

@@ -74,7 +74,7 @@ void wq_finish(WorkQueue* q)
 	pthread_mutex_unlock(&q->lock);
 }
 
-void wq_destroy(WorkQueue* q)
+__attribute__((cold)) void wq_destroy(WorkQueue* q)
 {
 	free((void*) q->paths);
 	pthread_cond_destroy(&q->not_full);

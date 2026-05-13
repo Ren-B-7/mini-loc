@@ -261,17 +261,17 @@ void load_languages(const unsigned char* data, size_t len, bool append)
 	}
 }
 
-static int ext_entry_cmp(const void* a, const void* b)
+static __attribute__((cold)) int ext_entry_cmp(const void* a, const void* b)
 {
 	return strcasecmp(((const ExtEntry*) a)->ext, ((const ExtEntry*) b)->ext);
 }
 
-static int ext_cmp_str(const void* key, const void* entry)
+static __attribute__((cold)) int ext_cmp_str(const void* key, const void* entry)
 {
 	return strcasecmp((const char*) key, ((const ExtEntry*) entry)->ext);
 }
 
-void build_lookup_table(void)
+__attribute__((cold)) void build_lookup_table(void)
 {
 	g_n_ext_entries = 0;
 	for (int i = 0; i < g_n_langs; i++) {
@@ -304,7 +304,7 @@ int find_language(LangLookupParams params)
 	return found ? found->lang_idx : -1;
 }
 
-bool is_ignored_extension(const char* ext)
+__attribute__((cold)) bool is_ignored_extension(const char* ext)
 {
 	if (!ext) {
 		return false;
