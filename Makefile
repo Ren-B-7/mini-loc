@@ -19,13 +19,15 @@ endif
 HARDENED ?= 0
 
 # Source and Header files
-SRCS_SINGLE = src/mini-loc-single.c src/include/set.c
-SRCS_MULTI = src/mini-loc-multi.c src/include/set.c
-SRCS_ALL = $(SRCS_SINGLE) src/mini-loc-multi.c
-HDRS = src/include/minicli.h src/include/set.h src/include/languages_data.h
+SRCS_SHARED = src/include/set.c src/fs.c src/count.c src/cli.c src/languages.c src/languages_data.c src/output.c
+SRCS_SINGLE = src/mini-loc-single.c 
+SRCS_MULTI = src/mini-loc-multi.c src/threading.c
+SRCS_ALL = $(SRCS_SINGLE) $(SRCS_MULTI) $(SRCS_SHARED)
+HDRS = src/include/cli.h src/include/count.h src/include/fs.h src/include/languages_data.h src/include/languages.h src/include/minicli.h src/include/output.h src/include/set.h src/include/threading.h src/include/types.h
 
 # Object files
-OBJS_COMMON = $(BUILD_DIR)/set.o
+OBJS_COMMON = $(BUILD_DIR)/set.o $(BUILD_DIR)/cli.o $(BUILD_DIR)/count.o $(BUILD_DIR)/fs.o $(BUILD_DIR)/languages.o $(BUILD_DIR)/threading.o $(BUILD_DIR)/languages_data.o $(BUILD_DIR)/output.o
+
 OBJ_SINGLE = $(BUILD_DIR)/mini-loc-single.o
 OBJ_MULTI = $(BUILD_DIR)/mini-loc-multi.o
 
