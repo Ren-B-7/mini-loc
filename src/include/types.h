@@ -31,6 +31,7 @@ typedef struct {
 	uint32_t code;
 	uint32_t comment;
 	uint32_t blank;
+	uint8_t padding[52];
 } Counts;
 
 /* Reordered the struct to be by cache and with slightly better alignment */
