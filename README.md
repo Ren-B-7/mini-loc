@@ -118,19 +118,21 @@ loc -r /path/to/codebase
 Help for the loc program:
 
 ```bash
-❯ loc --help
-Usage: mini-loc [options]
+❯ loc -h
+mini-loc — A fast lines-of-code counter
 
-Counts lines of code, comments, and blanks.
+Usage: mini-loc [options] [paths...]
 
 Options:
   --recurse        -r    Recurse into directories
   --files          -f    Show per-file results
-  --lang-file      -l    Language definition file
-  --append         -a    Append language definitions
-  --list-unknown         List unknown files
-  --verbose              Show file extensions
-  --filter               Filter output: code, comment, or blank
+  --sort           -s    Sort by: total, code, comment, blank, files
+  --output         -o    Output format: terminal, json, html, sql
+  --load           -l    Load custom language definitions
+  --append         -a    Append custom language definitions
+  --list-unknown         List files with unknown extensions
+  --filter               Only process these extensions (comma-sep)
+  --verbose              Show more detailed output
   --help           -h    Display this help
   --completions          Print shell completions (bash/zsh)
 ```
