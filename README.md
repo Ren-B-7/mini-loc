@@ -14,19 +14,26 @@ Built with speed in mind, `mini-loc` handles massive codebases in sub-second tim
 There are the make targets for `pgo-gen`, `copy-optimized`, and make `optimized`. To make profiled optimized builds.
 `copy-optimized` is to ensure the .gitignore doesnt drop the `.gcda` profiles for the 3 targets.
 
+The way i implemented multi threading means that for smaller directories the gap
+is minimal, in the case of the Vscode git clone the difference was about 0.01
+seconds, with pihole i am willing to bet they are either the exact same or actually slower.
+while the gap with the linux kernel is nearly a factor of 4
+
+For most i am willing to bet that single-threaded will be good enough, but when indexing a large repo or a large number of repos i would say go for the multi-threaded approach.
+
 | Target           | Single-Threaded | Multi-Threaded |
 | :--------------- | :-------------- | :------------- |
-| **Linux Kernel** | ~1.1s           | ~0.21          |
-| **Node.js**      | ~0.5s           | ~0.1           |
-| **Ladybird**     | ~0.1s           | ~0.04          |
-| **Rust**         | ~0.3s           | ~0.08           |
-| **Vscode**       | ~0.5s           | ~0.15          |
-| **Pi-hole**      | ~0.01s          | ~0.001         |
+| **Linux Kernel** | ~2.7s           | ~0.65s         |
+| **Node.js**      | ~1.1s           | ~0.7s          |
+| **Ladybird**     | ~0.25s          | ~0.18s         |
+| **Rust**         | ~0.4s           | ~0.3s          |
+| **Vscode**       | ~0.1s           | ~0.1s          |
+| **Pi-hole**      | ~0.003s         | ~0.003s        |
 
 ### Multi-Threaded Performance
 
-![Performance Breakdowns Linux + Rust Multi](Linux_and_rust_index_multi.png)
-![Performance Breakdowns Ladybird + Node Multi](Ladybird_and_Node_multi.png)
+![Performance Breakdowns Linux + Rust Multi](Linux_and_Rust_index_multi.png)
+![Performance Breakdowns Ladybird + Node Multi](Ladybird_and_Node_index_multi.png)
 ![Performance Breakdowns Vscode + Pihole Multi](Vscode_and_Pihole_index_multi.png)
 
 ### Single-Threaded Performance
@@ -38,6 +45,17 @@ There are the make targets for `pgo-gen`, `copy-optimized`, and make `optimized`
 ## Building
 
 This project uses a `Makefile` for building and managing the project. Ensure you have `gcc`, `make`, `clang-format`, and `clang-tidy` installed.
+
+### Dependancies
+
+cJson to be installed and used with the `gcc` linker flags.
+
+### Platforms
+
+To the best of my knowledge this project is not system or platform dependant.
+
+There is code in the `Makefile` to detect when you are on macos to ensure the
+needed `DARWIN` flag is added to gcc.
 
 ### Build the project
 
