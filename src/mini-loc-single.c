@@ -32,6 +32,9 @@ static void process_file_cb(const char* path, void* user)
 		g_files = temp;
 	}
 	int li = find_language((LangLookupParams) {path, ext});
+	if (li == -1) {
+		li = find_language((LangLookupParams) {path, NULL});
+	}
 	if (li == -1 && !g_cfg.list_unknown) {
 		return;
 	}

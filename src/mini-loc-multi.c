@@ -35,6 +35,9 @@ static void* worker(void* arg)
 			continue;
 		}
 		int li = find_language((LangLookupParams) {path, ext});
+		if (li == -1) {
+			li = find_language((LangLookupParams) {path, NULL});
+		}
 		if (li == -1 && !g_cfg.list_unknown) {
 			free(path);
 			continue;
