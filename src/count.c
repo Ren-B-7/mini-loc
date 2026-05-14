@@ -319,7 +319,8 @@ Counts count_file(const char* path, int lang_idx)
 	/*
 	 * Final line without trailing newline
 	 */
-	if (s.line_has_code || s.line_has_comment || (p > buf && !(char_table[(unsigned char)*(p-1)] & CHAR_NEWLINE))) {
+	if (s.line_has_code || s.line_has_comment ||
+	 (p > buf && !(char_table[(unsigned char) *(p - 1)] & CHAR_NEWLINE))) {
 		finalize_line(&s, &c);
 	}
 
