@@ -86,6 +86,7 @@ Counts count_file(const char* path, int lang_idx)
 	Counts c = {0};
 
 	FILE* f = fopen(path, "rb");
+
 	if (!f) {
 		return c;
 	}
@@ -97,7 +98,12 @@ Counts count_file(const char* path, int lang_idx)
 
 	long file_len = ftell(f);
 
-	if (file_len <= 0 || file_len >= MAX_FILE_SIZE) {
+	if (file_len < 0) {
+		fclose(f);
+		return c;
+	}
+
+	if (file_len == 0 || file_len >= MAX_FILE_SIZE) {
 		fclose(f);
 		return c;
 	}
@@ -109,17 +115,30 @@ Counts count_file(const char* path, int lang_idx)
 
 	size_t size = (size_t) file_len;
 
-	char* buf = (char*) malloc(size + 1);
+	/*
+	 * Prevent overflow on +1
+	 */
+	if (size >= SIZE_MAX - 1) {
+		fclose(f);
+		return c;
+	}
+
+	size_t alloc_size = size + 1;
+
+	char* buf = calloc(alloc_size, 1);
 
 	if (!buf) {
 		fclose(f);
 		return c;
 	}
 
-	size_t nread = fread(buf, 1, size - 1, f);
+	size_t nread = fread(buf, 1, size, f);
+
 	fclose(f);
 
-	buf[nread] = '\0';
+	if (nread > size) {
+		nread = size;
+	}
 
 	Language* lang = (lang_idx >= 0) ? &g_langs[lang_idx] : NULL;
 
