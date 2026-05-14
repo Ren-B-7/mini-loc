@@ -98,15 +98,15 @@ static void build_dispatch_table(Language* lang)
 {
 	memset(g_dispatch, 0xFF, sizeof(g_dispatch));
 	for (int i = 0; i < lang->n_quotes; i++) {
-		g_dispatch[(uint8_t) lang->quotes[i].start[0]].quote_idx = i;
+		g_dispatch[(uint8_t) lang->quotes[i].start[0]].quote_idx = (uint8_t) i;
 	}
 	for (int i = 0; i < lang->n_line_comments; i++) {
 		g_dispatch[(uint8_t) lang->line_comments[i].start[0]].line_comment_idx =
-		 i;
+		 (uint8_t) i;
 	}
 	for (int i = 0; i < lang->n_multi_line; i++) {
 		g_dispatch[(uint8_t) lang->multi_line[i].start[0]].block_comment_idx =
-		 i;
+		 (uint8_t) i;
 	}
 }
 
