@@ -117,6 +117,10 @@ clean:
 	@echo "Cleaning artifacts..."
 	@rm -rf $(BUILD_DIR) $(BIN_DIR)
 
+bench:
+	@echo "Running bench mark"
+	@python assets/bench.py ./bin/loc-$(NAME) $(COUNT)
+
 # Formatting and Linting (Restored mbake)
 format:
 	@echo "Formatting code and Makefile..."
