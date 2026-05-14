@@ -10,7 +10,6 @@ A big thank you to [Ben Boyter](https://github.com/boyter/scc/), and his write u
 
 Built with speed in mind, `mini-loc` handles massive codebases in sub-second times.
 
-
 There are the make targets for `pgo-gen`, `copy-optimized`, and make `optimized`. To make profiled optimized builds.
 `copy-optimized` is to ensure the .gitignore doesnt drop the `.gcda` profiles for the 3 targets.
 
@@ -23,14 +22,14 @@ For most i am willing to bet that single-threaded will be good enough, but when 
 
 (Ran on an i7-1156G7; 24 GBs of ram; On an m.2 NVME)
 
-| Target           | Single-Threaded | Multi-Threaded | Scc            |
-| :--------------- | :-------------- | :------------- | :------------- | 
-| **Linux Kernel** | ~2.7s           | ~0.65s         | ~2.0s          |
-| **Node.js**      | ~1.1s           | ~0.7s          | ~0.95s         |
-| **Ladybird**     | ~0.25s          | ~0.18s         | ~0.2s          |
-| **Rust**         | ~0.4s           | ~0.3s          | ~0.4s          |
-| **Vscode**       | ~0.09s          | ~0.03s         | ~0.07s         |
-| **Pi-hole**      | ~0.003s         | ~0.002s        | ~0.004s        |
+| Target           | Single-Threaded | Multi-Threaded | Scc     |
+| :--------------- | :-------------- | :------------- | :------ |
+| **Linux Kernel** | ~2.7s           | ~0.65s         | ~2.0s   |
+| **Node.js**      | ~1.1s           | ~0.7s          | ~0.95s  |
+| **Ladybird**     | ~0.25s          | ~0.18s         | ~0.2s   |
+| **Rust**         | ~0.4s           | ~0.3s          | ~0.4s   |
+| **Vscode**       | ~0.09s          | ~0.03s         | ~0.07s  |
+| **Pi-hole**      | ~0.003s         | ~0.002s        | ~0.004s |
 
 ### Multi-Threaded Performance
 
@@ -138,19 +137,27 @@ Options:
 ```
 
 ## TODO!!
- - gitignore/ ignore support
- - Complexity counting for feature parity with `scc`
- - comments.....
- - Changes to threading.c such that threads take more than 1 file from the ring buffer to decrease total lock time and thread contention (might increase time on small directories
- - Reducing malloc/ calloc calls
- - Performance improvements in fs.c (directory walking)
- - Improvements to output.h, currently the output can get shuffled for long file names
- - Feature testing, especially output formats, sorting, and appending and loading custom languages.json files. As well as filters.
- - Better struct packing
- - Splitting large structs to 'hot' and 'cold' structs to ensure structs can be kept in faster caches like L1 and L2 instead of L3
- - Improve branch miss rate
- - Test with hyperfine
- - Test macos and windows support
+
+- gitignore/ ignore support
+- Complexity counting for feature parity with `scc`
+- comments.....
+- Changes to threading.c such that threads take more than 1 file from the ring buffer to decrease total lock time and thread contention (might increase time on small directories
+- Reducing malloc/ calloc calls
+- Performance improvements in fs.c (directory walking)
+- Improvements to output.h, currently the output can get shuffled for long file names
+- Feature testing, especially output formats, sorting, and appending and loading custom languages.json files. As well as filters.
+- Better struct packing
+- Splitting large structs to 'hot' and 'cold' structs to ensure structs can be kept in faster caches like L1 and L2 instead of L3
+- Improve branch miss rate
+- Test with hyperfine
+- Test macos and windows support
+- Think of different way to handle symbolic links
+- Handle case sensitive file extensions (.h vs .H)
+- Check support for non-utf8 encoding (Have to debate myself on this one)
+- Compare mmap vs read for a large code base on multi and single thread runs
+- Parrallel make file support
+- Add github actions for formatting and linting checks
+- Add better testing potentially with libfuzzer
 
 ## License
 
