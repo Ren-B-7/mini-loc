@@ -57,7 +57,7 @@ def run_bench(target, count=5):
         data["cycles"].append(get_val(r"([\d,]+)\s+cycles"))
         data["instructions"].append(get_val(r"([\d,]+)\s+instructions"))
         data["page_faults"].append(get_val(r"([\d,]+)\s+page-faults"))
-        
+
         # Calculate IPC from instructions/cycles
         ins = data["instructions"][-1]
         cyc = data["cycles"][-1]

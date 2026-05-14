@@ -50,7 +50,7 @@ HARDENING_C = -D_FORTIFY_SOURCE=2 -fstack-protector-strong -fPIE -fstack-clash-p
 HARDENING_L = -Wl,-z,relro -Wl,-z,now -Wl,-z,noexecstack -Wl,-z,separate-code -pie
 
 # Optimization and PGO
-OPTFLAGS = -O3 -g -march=native -flto
+OPTFLAGS = -O3 -march=native -flto
 PGO_FLAGS =
 PGO_GEN_FLAGS = -fprofile-generate
 PGO_USE_FLAGS = -fprofile-use
@@ -122,7 +122,7 @@ format:
 	@echo "Formatting code and Makefile..."
 	@clang-format -style=file:./.clang-format -i $(SRCS_ALL) $(HDRS)
 	@mbake format --config ./.bake.toml Makefile
-	@black -q ./assets/convert_langs.py
+	@black -q ./assets/**.py
 
 lint:
 	@echo "Running analysis..."

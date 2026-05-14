@@ -26,6 +26,9 @@
 
 #define MAX_LANG_NAME_LEN 32
 #define MAX_EXTENSIONS 32
+#define MAX_FILENAMES 8
+#define MAX_SHEBANGS 8
+#define MAX_KEYWORDS 32
 
 #define PATH_BUF 4096
 #define MAX_FILE_SIZE (1024L * 1024L)
@@ -80,12 +83,22 @@ typedef struct {
 	bool data_only;
 
 	uint16_t n_extensions;
+	uint16_t n_filenames;
+	uint16_t n_shebangs;
+	uint16_t n_keywords;
 	uint16_t n_line_comments;
 	uint16_t n_multi_line;
 	uint16_t n_quotes;
 	uint16_t n_complexity;
 
 	char extensions[MAX_EXTENSIONS][MAX_EXT_LEN];
+	char filenames[MAX_FILENAMES][MAX_LANG_NAME_LEN];
+	char shebangs[MAX_SHEBANGS][MAX_EXT_LEN];
+	char keywords[MAX_KEYWORDS][MAX_EXT_LEN];
+
+	bool nestedmultiline;
+	char complexitychecks_postfix[MAX_EXT_LEN];
+	char complexitychecks_postfix_excludes[MAX_EXT_LEN];
 
 	LineCommentRule line_comments[MAX_LINE_COMMENTS];
 	MultiLineRule multi_line[MAX_BLOCK_COMMENTS];
