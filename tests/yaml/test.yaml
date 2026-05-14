@@ -1,0 +1,8 @@
+# YAML test
+key: value
+list:
+  - item 1
+  # comment
+  - item 2
+
+empty_line: 

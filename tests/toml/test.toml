@@ -1,0 +1,7 @@
+# TOML test
+[owner]
+name = "Tom" # Comment
+
+[database]
+server = "192.168.1.1"
+ports = [ 8000, 8001, 8002 ]
