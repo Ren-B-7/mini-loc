@@ -741,9 +741,10 @@ static inline void loc_print_terminal(FileResult* files_v, int n_files,
 
 	printf("\n%sLanguage Summary%s\n\n", LOC_TERM_CYAN, LOC_TERM_RESET);
 
-	printf("%-22s %7s %10s %7s %10s %10s %10s\n", "Language", "Files", "Code",
+	printf("%-30s %7s %10s %7s %10s %10s %10s\n", "Language", "Files", "Code",
 	 "Pct", "Comment", "Blank", "Total");
-	printf("-------------------------------------------------------------\n");
+	printf("-------------------------------------------------------------------"
+	       "-----------------------\n");
 
 	for (int i = 0; i < n_sums; i++) {
 		long total =
@@ -759,7 +760,7 @@ static inline void loc_print_terminal(FileResult* files_v, int n_files,
 		 "(unknown)";
 
 		printf(
-		 "%-22s %7d "
+		 "%-30s %7d "
 		 "%s%10" PRIu32 "%s "
 		 "%6.1f%% "
 		 "%s%10" PRIu32 "%s "
@@ -770,7 +771,8 @@ static inline void loc_print_terminal(FileResult* files_v, int n_files,
 		 LOC_TERM_RESET, LOC_TERM_GRAY, sums[i].counts.blank, LOC_TERM_RESET,
 		 total);
 	}
-	printf("-------------------------------------------------------------\n");
+	printf("-------------------------------------------------------------------"
+	       "-----------------------\n");
 	printf("%-22s %7ld %10ld %6.1f%% %10ld %10ld %10ld\n\n", "TOTAL", t_files,
 	 t_code, 100.0, t_comment, t_blank, grand_total);
 
