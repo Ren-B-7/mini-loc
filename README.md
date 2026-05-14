@@ -137,6 +137,21 @@ Options:
   --completions          Print shell completions (bash/zsh)
 ```
 
+## TODO!!
+ - gitignore/ ignore support
+ - Complexity counting for feature parity with `scc`
+ - comments.....
+ - Changes to threading.c such that threads take more than 1 file from the ring buffer to decrease total lock time and thread contention (might increase time on small directories
+ - Reducing malloc/ calloc calls
+ - Performance improvements in fs.c (directory walking)
+ - Improvements to output.h, currently the output can get shuffled for long file names
+ - Feature testing, especially output formats, sorting, and appending and loading custom languages.json files. As well as filters.
+ - Better struct packing
+ - Splitting large structs to 'hot' and 'cold' structs to ensure structs can be kept in faster caches like L1 and L2 instead of L3
+ - Improve branch miss rate
+ - Test with hyperfine
+ - Test macos and windows support
+
 ## License
 
 This project is open-source and licensed under the [MIT License](LICENSE).
