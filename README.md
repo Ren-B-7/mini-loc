@@ -15,9 +15,9 @@ There are the make targets for `pgo-gen`, `copy-optimized`, and make `optimized`
 `copy-optimized` is to ensure the .gitignore doesnt drop the `.gcda` profiles for the 3 targets.
 
 The way i implemented multi threading means that for smaller directories the gap
-is minimal, in the case of the Vscode git clone the difference was about 0.01
-seconds, with pihole i am willing to bet they are either the exact same or actually slower.
-while the gap with the linux kernel is nearly a factor of 4.
+is minimal, in the case of the Vscode git clone the difference was about 0.06
+seconds, with pihole i am willing to bet they are either the exact same or has a minimal difference.
+While the gap with the linux kernel is nearly a factor of 4.
 
 For most i am willing to bet that single-threaded will be good enough, but when indexing a large repo or a large number of repos i would say go for the multi-threaded approach.
 
@@ -30,7 +30,7 @@ For most i am willing to bet that single-threaded will be good enough, but when 
 | **Ladybird**     | ~0.25s          | ~0.18s         | ~0.2s          |
 | **Rust**         | ~0.4s           | ~0.3s          | ~0.4s          |
 | **Vscode**       | ~0.09s          | ~0.03s         | ~0.07s         |
-| **Pi-hole**      | ~0.003s         | ~0.003s        | ~0.004s        |
+| **Pi-hole**      | ~0.003s         | ~0.002s        | ~0.004s        |
 
 ### Multi-Threaded Performance
 
