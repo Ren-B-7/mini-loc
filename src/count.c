@@ -60,6 +60,13 @@ match_token(const char* p, const char* end, const char* token, uint8_t len)
 		return v1 == v2;
 	}
 
+	case 3: {
+		uint16_t v1, v2;
+		memcpy(&v1, p, 2);
+		memcpy(&v2, token, 2);
+		return v1 == v2 && p[2] == token[2];
+	}
+
 	case 4: {
 		uint32_t v1, v2;
 		memcpy(&v1, p, 4);
@@ -79,15 +86,39 @@ match_token(const char* p, const char* end, const char* token, uint8_t len)
 	}
 }
 
+typedef struct {
+	uint8_t quote_idx;
+	uint8_t line_comment_idx;
+	uint8_t block_comment_idx;
+} FirstCharEntry;
+
+static FirstCharEntry g_dispatch[256];
+
+static void build_dispatch_table(Language* lang)
+{
+	memset(g_dispatch, 0xFF, sizeof(g_dispatch));
+	for (int i = 0; i < lang->n_quotes; i++) {
+		g_dispatch[(uint8_t) lang->quotes[i].start[0]].quote_idx = i;
+	}
+	for (int i = 0; i < lang->n_line_comments; i++) {
+		g_dispatch[(uint8_t) lang->line_comments[i].start[0]].line_comment_idx =
+		 i;
+	}
+	for (int i = 0; i < lang->n_multi_line; i++) {
+		g_dispatch[(uint8_t) lang->multi_line[i].start[0]].block_comment_idx =
+		 i;
+	}
+}
+
 static inline void finalize_line(Scanner* s, Counts* c)
 {
-	if (!s->line_has_code && !s->line_has_comment) {
-		c->blank++;
-	} else if (s->line_has_code) {
-		c->code++;
-	} else {
-		c->comment++;
-	}
+	int has_code = (int) s->line_has_code;
+	int has_comment = (int) s->line_has_comment & ~has_code;
+	int is_blank = 1 - has_code - has_comment;
+
+	c->code += (uint32_t) has_code;
+	c->comment += (uint32_t) has_comment;
+	c->blank += (uint32_t) is_blank;
 
 	s->line_has_code = false;
 	s->line_has_comment = false;
@@ -159,6 +190,8 @@ Counts count_file(const char* path, int lang_idx)
 		return c;
 	}
 
+	build_dispatch_table(lang);
+
 	Scanner s = {0};
 
 	const char* p = buf;
@@ -167,7 +200,7 @@ Counts count_file(const char* path, int lang_idx)
 	while (p < end) {
 		unsigned char ch = (unsigned char) *p;
 
-		if (char_table[ch] & CHAR_NEWLINE) {
+		if (__builtin_expect(char_table[ch] & CHAR_NEWLINE, 0)) {
 			finalize_line(&s, &c);
 			if (s.state == SCAN_LINE_COMMENT) {
 				s.state = SCAN_NORMAL;
@@ -178,95 +211,48 @@ Counts count_file(const char* path, int lang_idx)
 
 		switch (s.state) {
 		case SCAN_NORMAL: {
-			bool matched = false;
-
 			if (is_whitespace(ch)) {
 				break;
 			}
 
-			/*
-			 * Quote handling
-			 */
-			for (uint16_t i = 0; i < lang->n_quotes; i++) {
-				QuoteRule* q = &lang->quotes[i];
+			FirstCharEntry* e = &g_dispatch[ch];
 
-				if (q->start[0] != *p) {
-					continue;
-				}
-
+			if (e->quote_idx != 0xFF) {
+				QuoteRule* q = &lang->quotes[e->quote_idx];
 				if (match_token(p, end, q->start, q->start_len)) {
 					s.state = SCAN_STRING;
-					s.quote_index = i;
+					s.quote_index = e->quote_idx;
 					s.line_has_code = true;
-
 					p += q->start_len - 1;
-
-					matched = true;
 					break;
 				}
 			}
 
-			if (matched) {
-				break;
-			}
-
-			/*
-			 * Line comments
-			 */
-			for (uint16_t i = 0; i < lang->n_line_comments; i++) {
-				LineCommentRule* lc = &lang->line_comments[i];
-
-				if (lc->start[0] != *p) {
-					continue;
-				}
-
+			if (e->line_comment_idx != 0xFF) {
+				LineCommentRule* lc = &lang->line_comments[e->line_comment_idx];
 				if (match_token(p, end, lc->start, lc->len)) {
 					s.state = SCAN_LINE_COMMENT;
 					s.line_has_comment = true;
-
 					p += lc->len - 1;
-
-					matched = true;
 					break;
 				}
 			}
 
-			if (matched) {
-				break;
-			}
-
-			/*
-			 * Block comments
-			 */
-			for (uint16_t i = 0; i < lang->n_multi_line; i++) {
-				MultiLineRule* ml = &lang->multi_line[i];
-
-				if (ml->start[0] != *p) {
-					continue;
-				}
-
+			if (e->block_comment_idx != 0xFF) {
+				MultiLineRule* ml = &lang->multi_line[e->block_comment_idx];
 				if (match_token(p, end, ml->start, ml->start_len)) {
-					s.state = SCAN_BLOCK_COMMENT;
-					s.block_index = i;
+					s.state = ml->nested ?
+					 SCAN_BLOCK_COMMENT_NESTED :
+					 SCAN_BLOCK_COMMENT;
+					s.block_index = e->block_comment_idx;
 					s.block_depth = 1;
 					s.line_has_comment = true;
-
 					p += ml->start_len - 1;
-
-					matched = true;
 					break;
 				}
 			}
 
-			if (matched) {
-				break;
-			}
-
-			/*
-			 * Everything else is code
-			 */
 			s.line_has_code = true;
-
 			break;
 		}
 
@@ -276,23 +262,25 @@ Counts count_file(const char* path, int lang_idx)
 
 		case SCAN_BLOCK_COMMENT: {
 			s.line_has_comment = true;
-
 			MultiLineRule* ml = &lang->multi_line[s.block_index];
 
-			/*
-			 * Nested comments
-			 */
-			if (ml->nested && *p == ml->start[0] &&
+			if (*p == ml->end[0] && match_token(p, end, ml->end, ml->end_len)) {
+				p += ml->end_len - 1;
+				s.state = SCAN_NORMAL;
+			}
+			break;
+		}
+
+		case SCAN_BLOCK_COMMENT_NESTED: {
+			s.line_has_comment = true;
+			MultiLineRule* ml = &lang->multi_line[s.block_index];
+
+			if (*p == ml->start[0] &&
 			 match_token(p, end, ml->start, ml->start_len)) {
 				s.block_depth++;
 				p += ml->start_len - 1;
-				break;
-			}
-
-			/*
-			 * Comment end
-			 */
-			if (*p == ml->end[0] && match_token(p, end, ml->end, ml->end_len)) {
+			} else if (*p == ml->end[0] &&
+			 match_token(p, end, ml->end, ml->end_len)) {
 				s.block_depth--;
 				p += ml->end_len - 1;
 				if (s.block_depth == 0) {
