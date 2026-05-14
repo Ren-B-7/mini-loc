@@ -50,7 +50,7 @@ HARDENING_C = -D_FORTIFY_SOURCE=2 -fstack-protector-strong -fPIE -fstack-clash-p
 HARDENING_L = -Wl,-z,relro -Wl,-z,now -Wl,-z,noexecstack -Wl,-z,separate-code -pie
 
 # Optimization and PGO
-OPTFLAGS = -O3 -march=native -flto
+OPTFLAGS = -O0 -g -march=native -flto
 PGO_FLAGS =
 PGO_GEN_FLAGS = -fprofile-generate
 PGO_USE_FLAGS = -fprofile-use

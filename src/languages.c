@@ -52,6 +52,10 @@ static const char* json_read_string(const char* p, char* buf, size_t len)
 		p++;
 	}
 
+	if (!*p) {
+		return NULL;
+	}
+
 	buf[i] = '\0';
 
 	if (*p == '"') {
@@ -117,6 +121,9 @@ static const char* parse_extensions(const char* p, Language* lang)
 		} else {
 			p = json_read_string(p, lang->extensions[lang->n_extensions],
 			 MAX_EXT_LEN);
+			if (!p) {
+				break;
+			}
 
 			lang->n_extensions++;
 		}
@@ -271,6 +278,9 @@ static const char* parse_quotes(const char* p, Language* lang)
 				char key[32];
 
 				p = json_read_string(p, key, sizeof(key));
+				if (!p) {
+					break;
+				}
 
 				p = json_skip_whitespace(p);
 
@@ -407,12 +417,16 @@ void load_languages(const unsigned char* data, size_t len, bool append)
 
 		memset(&temp, 0, sizeof(Language));
 
+		printf("DEBUG: Parsed %s\n", lang_name);
 		strncpy(temp.name, lang_name, MAX_LANG_NAME_LEN - 1);
 
 		while (p && *p && *p != '}') {
 			char key[64];
 
 			p = json_read_string(p, key, sizeof(key));
+			if (!p) {
+				break;
+			}
 
 			p = json_skip_whitespace(p);
 
@@ -492,7 +506,7 @@ void load_languages(const unsigned char* data, size_t len, bool append)
 			}
 		}
 
-		if (*p == '}') {
+		if (p && *p == '}') {
 			p++;
 		}
 
@@ -500,7 +514,7 @@ void load_languages(const unsigned char* data, size_t len, bool append)
 
 		p = json_skip_whitespace(p);
 
-		if (*p == ',') {
+		if (p && *p == ',') {
 			p++;
 		}
 	}

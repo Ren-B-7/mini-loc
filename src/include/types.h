@@ -30,8 +30,8 @@
 #define PATH_BUF 4096
 #define MAX_FILE_SIZE (1024L * 1024L)
 
-#define MAX_COMPLEXITY_CHECKS 64
-#define MAX_COMPLEXITY_LEN 32
+#define MAX_COMPLEXITY_CHECKS 96
+#define MAX_COMPLEXITY_LEN 64
 
 /* 12 Bytes instead of 24 */
 typedef struct {
