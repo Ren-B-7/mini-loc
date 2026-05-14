@@ -53,14 +53,26 @@ match_token(const char* p, const char* end, const char* token, uint8_t len)
 	case 1:
 		return p[0] == token[0];
 
-	case 2:
-		return *(const uint16_t*) p == *(const uint16_t*) token;
+	case 2: {
+		uint16_t v1, v2;
+		memcpy(&v1, p, 2);
+		memcpy(&v2, token, 2);
+		return v1 == v2;
+	}
 
-	case 4:
-		return *(const uint32_t*) p == *(const uint32_t*) token;
+	case 4: {
+		uint32_t v1, v2;
+		memcpy(&v1, p, 4);
+		memcpy(&v2, token, 4);
+		return v1 == v2;
+	}
 
-	case 8:
-		return *(const uint64_t*) p == *(const uint64_t*) token;
+	case 8: {
+		uint64_t v1, v2;
+		memcpy(&v1, p, 8);
+		memcpy(&v2, token, 8);
+		return v1 == v2;
+	}
 
 	default:
 		return memcmp(p, token, len) == 0;

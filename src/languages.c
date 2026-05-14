@@ -84,7 +84,7 @@ void load_languages_from_file(const char* path, bool append)
 
 		cJSON* data_only = cJSON_GetObjectItem(lang_node, "data_only");
 		if (cJSON_IsBool(data_only)) {
-			l->data_only = (bool) cJSON_IsTrue(data_only);
+			l->data_only = cJSON_IsTrue(data_only);
 		}
 
 		cJSON* extensions = cJSON_GetObjectItem(lang_node, "extensions");
