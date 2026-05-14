@@ -9,7 +9,7 @@ A big thank you to [Ben Boyter](https://github.com/boyter/scc/), and his write u
 ## Performance
 
 Built with speed in mind, `mini-loc` handles massive codebases in sub-second times.
-(Ran on an i7-1156G7; 24 GBs of ram; On an m.2 NVME)
+
 
 There are the make targets for `pgo-gen`, `copy-optimized`, and make `optimized`. To make profiled optimized builds.
 `copy-optimized` is to ensure the .gitignore doesnt drop the `.gcda` profiles for the 3 targets.
@@ -17,9 +17,11 @@ There are the make targets for `pgo-gen`, `copy-optimized`, and make `optimized`
 The way i implemented multi threading means that for smaller directories the gap
 is minimal, in the case of the Vscode git clone the difference was about 0.01
 seconds, with pihole i am willing to bet they are either the exact same or actually slower.
-while the gap with the linux kernel is nearly a factor of 4
+while the gap with the linux kernel is nearly a factor of 4.
 
 For most i am willing to bet that single-threaded will be good enough, but when indexing a large repo or a large number of repos i would say go for the multi-threaded approach.
+
+(Ran on an i7-1156G7; 24 GBs of ram; On an m.2 NVME)
 
 | Target           | Single-Threaded | Multi-Threaded |
 | :--------------- | :-------------- | :------------- |
@@ -116,19 +118,21 @@ loc -r /path/to/codebase
 Help for the loc program:
 
 ```bash
-❯ loc --help
-Usage: mini-loc [options]
+❯ loc -h
+mini-loc — A fast lines-of-code counter
 
-Counts lines of code, comments, and blanks.
+Usage: mini-loc [options] [paths...]
 
 Options:
   --recurse        -r    Recurse into directories
   --files          -f    Show per-file results
-  --lang-file      -l    Language definition file
-  --append         -a    Append language definitions
-  --list-unknown         List unknown files
-  --verbose              Show file extensions
-  --filter               Filter output: code, comment, or blank
+  --sort           -s    Sort by: total, code, comment, blank, files
+  --output         -o    Output format: terminal, json, html, sql
+  --load           -l    Load custom language definitions
+  --append         -a    Append custom language definitions
+  --list-unknown         List files with unknown extensions
+  --filter               Only process these extensions (comma-sep)
+  --verbose              Show more detailed output
   --help           -h    Display this help
   --completions          Print shell completions (bash/zsh)
 ```
