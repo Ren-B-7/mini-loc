@@ -773,7 +773,7 @@ static inline void loc_print_terminal(FileResult* files_v, int n_files,
 	}
 	printf("-------------------------------------------------------------------"
 	       "-----------------------\n");
-	printf("%-22s %7ld %10ld %6.1f%% %10ld %10ld %10ld\n\n", "TOTAL", t_files,
+	printf("%-30s %7ld %10ld %6.1f%% %10ld %10ld %10ld\n\n", "TOTAL", t_files,
 	 t_code, 100.0, t_comment, t_blank, grand_total);
 
 	printf(
