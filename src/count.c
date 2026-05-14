@@ -37,12 +37,12 @@ static const uint8_t char_table[256] = {
     ['\\'] = CHAR_BACKSLASH,
 };
 
-static inline bool is_whitespace(unsigned char c)
+static inline __attribute__((always_inline)) bool is_whitespace(unsigned char c)
 {
 	return (char_table[c] & CHAR_WHITESPACE) != 0;
 }
 
-static inline bool
+static inline __attribute__((always_inline)) bool
 match_token(const char* p, const char* end, const char* token, uint8_t len)
 {
 	if ((size_t) (end - p) < len) {
