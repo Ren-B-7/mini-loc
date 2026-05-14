@@ -78,10 +78,6 @@ typedef struct {
 } ComplexityRule;
 
 typedef struct {
-	char name[MAX_LANG_NAME_LEN];
-
-	bool data_only;
-
 	uint16_t n_extensions;
 	uint16_t n_filenames;
 	uint16_t n_shebangs;
@@ -91,18 +87,20 @@ typedef struct {
 	uint16_t n_quotes;
 	uint16_t n_complexity;
 
-	char extensions[MAX_EXTENSIONS][MAX_EXT_LEN];
-	char filenames[MAX_FILENAMES][MAX_LANG_NAME_LEN];
-	char shebangs[MAX_SHEBANGS][MAX_EXT_LEN];
-	char keywords[MAX_KEYWORDS][MAX_EXT_LEN];
-
+	bool data_only;
 	bool nestedmultiline;
+
+	char name[MAX_LANG_NAME_LEN];
 	char complexitychecks_postfix[MAX_EXT_LEN];
 	char complexitychecks_postfix_excludes[MAX_EXT_LEN];
 
 	LineCommentRule line_comments[MAX_LINE_COMMENTS];
+	char filenames[MAX_FILENAMES][MAX_LANG_NAME_LEN];
+	char shebangs[MAX_SHEBANGS][MAX_EXT_LEN];
 	MultiLineRule multi_line[MAX_BLOCK_COMMENTS];
 	QuoteRule quotes[16];
+	char extensions[MAX_EXTENSIONS][MAX_EXT_LEN];
+	char keywords[MAX_KEYWORDS][MAX_EXT_LEN];
 	ComplexityRule complexity[MAX_COMPLEXITY_CHECKS];
 
 } Language;

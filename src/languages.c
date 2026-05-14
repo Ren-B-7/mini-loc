@@ -37,27 +37,39 @@ void load_languages_from_file(const char* path, bool append)
 		return;
 	}
 
-	fseek(f, 0, SEEK_END);
+	if (fseek(f, 0, SEEK_END) != 0) {
+		fclose(f);
+		return;
+	}
 	long len = ftell(f);
-	fseek(f, 0, SEEK_SET);
-
-	if (len <= 0) {
+	if (fseek(f, 0, SEEK_SET) != 0) {
 		fclose(f);
 		return;
 	}
 
-	char* data = malloc((size_t) len + 1);
+	if (len <= 0 || len >= MAX_FILE_SIZE) {
+		fclose(f);
+		return;
+	}
+
+	size_t file_size = (size_t) len;
+
+	/* calloc zero-initialises the buffer, so the null terminator at
+	   data[file_size] is already in place before fread runs. This avoids
+	   any indexed write using a tainted value derived from fread/ftell,
+	   which the analyser cannot reason about safely. */
+	char* data = calloc(file_size + 1, 1);
 	if (!data) {
 		fclose(f);
 		return;
 	}
 
-	if (fread(data, 1, (size_t) len, f) != (size_t) len) {
+	size_t n_read = fread(data, 1, file_size, f);
+	if (n_read != file_size) {
 		free(data);
 		fclose(f);
 		return;
 	}
-	data[len] = '\0';
 	fclose(f);
 
 	cJSON* root = cJSON_Parse(data);
