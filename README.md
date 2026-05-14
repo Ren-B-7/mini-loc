@@ -17,7 +17,7 @@ There are the make targets for `pgo-gen`, `copy-optimized`, and make `optimized`
 The way i implemented multi threading means that for smaller directories the gap
 is minimal, in the case of the Vscode git clone the difference was about 0.01
 seconds, with pihole i am willing to bet they are either the exact same or actually slower.
-while the gap with the linux kernel is nearly a factor of 4
+while the gap with the linux kernel is nearly a factor of 4.
 
 For most i am willing to bet that single-threaded will be good enough, but when indexing a large repo or a large number of repos i would say go for the multi-threaded approach.
 
