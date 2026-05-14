@@ -71,11 +71,6 @@ __attribute__((cold)) int main(int argc, char** argv)
 	loc_config_init(&g_cfg);
 	parse_cli(&g_cfg, argc, argv);
 
-	if (g_cfg.help) {
-		print_help();
-		return 0;
-	}
-
 	load_languages();
 
 	if (g_cfg.lang_load_path) {

@@ -7,7 +7,7 @@
 
 #include "set.h"
 
-typedef void (*cli_callback)(int argc, char** argv, void* user_data);
+typedef int (*cli_callback)(int argc, char** argv, void* user_data);
 
 typedef struct {
 	const char* name;
@@ -37,20 +37,22 @@ static void cli_add_argument(CliParser* parser, CliArgument arg);
 static void cli_print_help(const CliParser* parser);
 static void cli_print_completions(const CliParser* parser, const char* shell);
 
-static void handle_help(int argc, char** argv, void* user_data)
+static int handle_help(int argc, char** argv, void* user_data)
 {
 	(void) argc;
 	(void) argv;
 	cli_print_help((CliParser*) user_data);
 	exit(0);
+	return 0;
 }
 
-static void handle_completions(int argc, char** argv, void* user_data)
+static int handle_completions(int argc, char** argv, void* user_data)
 {
 	if (argc > 0) {
 		cli_print_completions((CliParser*) user_data, argv[0]);
 		exit(0);
 	}
+	return 0;
 }
 
 static inline int cli_init(CliParser* parser, CliInitParams params)
@@ -96,8 +98,8 @@ static void cli_add_argument(CliParser* parser, CliArgument arg)
 
 static void cli_print_help(const CliParser* parser)
 {
-	printf("Usage: %s [options]\n\n", parser->name);
-	printf("%s\n\n", parser->description);
+	printf("%s — %s\n\n", parser->name, parser->description);
+	printf("Usage: %s [options] [paths...]\n\n", parser->name);
 	printf("Options:\n");
 
 	/* Print custom options first */
@@ -137,14 +139,15 @@ cli_print_completions(const CliParser* parser, const char* shell)
 		printf("_%s_completions()\n", parser->name);
 		printf("{\n");
 		printf("    local cur=\"${COMP_WORDS[COMP_CWORD]}\"\n");
-		printf("    COMPREPLY=( $(compgen -W \"");
+		printf("    local opts=\"");
 		for (size_t i = 0; i < parser->arg_count; i++) {
 			printf("%s ", parser->registered_args[i].name);
 			if (parser->registered_args[i].shorthand) {
 				printf("%s ", parser->registered_args[i].shorthand);
 			}
 		}
-		printf("\" -- \"$cur\") )\n");
+		printf("\"\n");
+		printf("    COMPREPLY=( $(compgen -W \"$opts\" -- \"$cur\") )\n");
 		printf("}\n");
 		printf("complete -F _%s_completions %s\n", parser->name, parser->name);
 	} else if (strcmp(shell, "zsh") == 0) {
@@ -164,14 +167,23 @@ cli_print_completions(const CliParser* parser, const char* shell)
 static inline int cli_parse(CliParser* parser, int argc, char** argv)
 {
 	for (int i = 1; i < argc; i++) {
+		if (argv[i][0] != '-') {
+			continue;
+		}
+		bool found = false;
 		for (size_t j = 0; j < parser->arg_count; j++) {
 			if (strcmp(argv[i], parser->registered_args[j].name) == 0 ||
 			 (parser->registered_args[j].shorthand &&
 			  strcmp(argv[i], parser->registered_args[j].shorthand) == 0)) {
-				parser->registered_args[j].callback(argc - i - 1, &argv[i + 1],
-				 parser->registered_args[j].user_data);
-				return 0;
+				int consumed = parser->registered_args[j].callback(argc - i - 1,
+				 &argv[i + 1], parser->registered_args[j].user_data);
+				i += consumed;
+				found = true;
+				break;
 			}
+		}
+		if (!found) {
+			/* Unknown option, ignore for now or handle as needed */
 		}
 	}
 	return 0;

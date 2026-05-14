@@ -10,7 +10,6 @@ typedef struct {
 	bool show_files;
 	bool list_unknown;
 	bool verbose;
-	bool help;
 
 	char* filter;
 	char* lang_load_path;
@@ -22,6 +21,5 @@ typedef struct {
 
 void loc_config_init(LocConfig* cfg);
 void parse_cli(LocConfig* cfg, int argc, char** argv);
-void print_help(void);
 
 #endif
