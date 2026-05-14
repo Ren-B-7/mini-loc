@@ -86,9 +86,9 @@ static __attribute__((cold)) void loc_print_html(const FileResult* files,
 static __attribute__((cold)) void loc_print_sql(const FileResult* files,
  int n_files, const Language* langs, int n_langs, bool show_files,
  LocSortOrder sort_order);
-static inline __attribute__((cold)) void
-loc_print_terminal(FileResult* files, int n_files, const Language* langs,
- int n_langs, bool show_files, bool verbose, LocSortOrder sort_order);
+static inline __attribute__((cold)) void loc_print_terminal(FileResult* files,
+ int n_files, const Language* langs, int n_langs, bool show_files, bool verbose,
+ LocSortOrder sort_order);
 
 /* Internal helpers */
 
@@ -344,7 +344,6 @@ static void loc_print_json(const FileResult* files_v, int n_files,
 	 (LocSumParams) {n_files, n_langs, MAX_SUMS_JSON, sort_order}, sums,
 	 &t_files, &t_code, &t_comm, &t_blank);
 	long grand_total = t_code + t_comm + t_blank;
-
 
 	char esc[1024];
 
@@ -798,8 +797,8 @@ static inline void loc_print_terminal(FileResult* files_v, int n_files,
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
-static void loc_print_report(LocOutputFormat fmt, FileResult* files, int n_files,
- const Language* langs, int n_langs, bool show_files, bool verbose,
+static void loc_print_report(LocOutputFormat fmt, FileResult* files,
+ int n_files, const Language* langs, int n_langs, bool show_files, bool verbose,
  LocSortOrder sort_order)
 {
 	switch (fmt) {

@@ -17,7 +17,8 @@ __attribute__((cold)) void print_help(void)
 	printf("Options:\n");
 	printf("  -r, --recurse       Recurse into directories\n");
 	printf("  -f, --files         Show per-file results\n");
-	printf("  -s, --sort <ORDER>  Sort by: total, code, comment, blank, files\n");
+	printf("  -s, --sort <ORDER>  Sort by: total, code, comment, blank, "
+	       "files\n");
 	printf("  -o, --output <FMT>  Output format: terminal, json, html, sql\n");
 	printf("  -l, --load <PATH>   Load custom language definitions\n");
 	printf("  -a, --append <PATH> Append custom language definitions\n");
