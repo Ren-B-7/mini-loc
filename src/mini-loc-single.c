@@ -49,6 +49,12 @@ __attribute__((cold)) int main(int argc, char** argv)
 {
 	loc_config_init(&g_cfg);
 	parse_cli(&g_cfg, argc, argv);
+
+	if (g_cfg.help) {
+		print_help();
+		return 0;
+	}
+
 	load_languages();
 
 	if (g_cfg.lang_load_path) {
@@ -65,7 +71,8 @@ __attribute__((cold)) int main(int argc, char** argv)
 			if (strcmp(argv[i], "-l") == 0 || strcmp(argv[i], "--load") == 0 ||
 			 strcmp(argv[i], "-a") == 0 || strcmp(argv[i], "--append") == 0 ||
 			 strcmp(argv[i], "--filter") == 0 || strcmp(argv[i], "-o") == 0 ||
-			 strcmp(argv[i], "--output") == 0) {
+			 strcmp(argv[i], "--output") == 0 || strcmp(argv[i], "-s") == 0 ||
+			 strcmp(argv[i], "--sort") == 0) {
 				i++;
 			}
 			continue;
@@ -77,7 +84,7 @@ __attribute__((cold)) int main(int argc, char** argv)
 		process_path(".", g_cfg.recurse, process_file_cb, NULL);
 	}
 	loc_print_report(g_cfg.output_fmt, g_files, g_n_files, g_langs, g_n_langs,
-	 g_cfg.show_files, g_cfg.verbose);
+	 g_cfg.show_files, g_cfg.verbose, g_cfg.sort_order);
 	if (g_files) {
 		for (int i = 0; i < g_n_files; i++) {
 			free(g_files[i].path);

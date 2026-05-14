@@ -147,10 +147,19 @@ typedef struct {
 	const char* ext;
 } LangLookupParams;
 
+typedef enum {
+	LOC_SORT_TOTAL = 0,
+	LOC_SORT_CODE,
+	LOC_SORT_COMMENT,
+	LOC_SORT_BLANK,
+	LOC_SORT_FILES,
+} LocSortOrder;
+
 typedef struct {
 	int num_files;
 	int num_langs;
 	int max_sums;
+	LocSortOrder sort_order;
 } LocSumParams;
 
 typedef enum {

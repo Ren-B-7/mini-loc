@@ -58,10 +58,7 @@ typedef struct {
 	Counts counts;
 } LocLangSum;
 
-/*
- * loc_print_report
- *
- * Master dispatcher — call this instead of (or from within) print_report().
+/* Master dispatcher — call this instead of (or from within) print_report().
  *
  * Parameters
  *   fmt        — output format selected by the user
@@ -71,33 +68,39 @@ typedef struct {
  *   n_langs    — number of valid entries in langs[]
  *   show_files — whether per-file rows should be included
  *   verbose    — whether the extension column should be shown (terminal / HTML)
+ *   sort_order — how to sort the output
  */
 static __attribute__((cold)) void loc_print_report(LocOutputFormat fmt,
- const FileResult* files, int n_files, const Language* langs, int n_langs,
- bool show_files, bool verbose);
+ FileResult* files, int n_files, const Language* langs, int n_langs,
+ bool show_files, bool verbose, LocSortOrder sort_order);
 
 /* Individual formatters — all static inline so they are inlined into the
  * single compilation unit that #includes this header, producing zero link-time
  * symbol conflicts between single and multi. */
 static __attribute__((cold)) void loc_print_json(const FileResult* files,
- int n_files, const Language* langs, int n_langs, bool show_files);
-static __attribute__((cold)) void loc_print_html(const FileResult* files,
  int n_files, const Language* langs, int n_langs, bool show_files,
- bool verbose);
+ LocSortOrder sort_order);
+static __attribute__((cold)) void loc_print_html(const FileResult* files,
+ int n_files, const Language* langs, int n_langs, bool show_files, bool verbose,
+ LocSortOrder sort_order);
 static __attribute__((cold)) void loc_print_sql(const FileResult* files,
- int n_files, const Language* langs, int n_langs, bool show_files);
+ int n_files, const Language* langs, int n_langs, bool show_files,
+ LocSortOrder sort_order);
 static inline __attribute__((cold)) void
-loc_print_terminal(const FileResult* files, int n_files, const Language* langs,
- int n_langs, bool show_files, bool verbose);
+loc_print_terminal(FileResult* files, int n_files, const Language* langs,
+ int n_langs, bool show_files, bool verbose, LocSortOrder sort_order);
 
 /* Internal helpers */
 
 /* Build the per-language summary table from a flat FileResult array.
  * Returns the number of entries written into out_sums (≤ max_sums).
  * Also writes grand totals into *t_files, *t_code, *t_comm, *t_blank. */
+
 static __attribute__((cold)) int loc__build_sums(const FileResult* files_v,
  LocSumParams params, LocLangSum* out_sums, long* t_files, long* t_code,
  long* t_comm, long* t_blank);
+
+static LocSortOrder g_sort_order = LOC_SORT_TOTAL;
 
 /* qsort comparator — sort by total descending */
 static inline __attribute__((cold)) int
@@ -105,9 +108,65 @@ loc__sum_cmp(const void* a, const void* b)
 {
 	const LocLangSum* la = (const LocLangSum*) a;
 	const LocLangSum* lb = (const LocLangSum*) b;
-	long ta = la->counts.code + la->counts.comment + la->counts.blank;
-	long tb = lb->counts.code + lb->counts.comment + lb->counts.blank;
-	return (tb > ta) ? 1 : (tb < ta) ? -1 : 0;
+	long val_a = 0, val_b = 0;
+
+	switch (g_sort_order) {
+	case LOC_SORT_CODE:
+		val_a = la->counts.code;
+		val_b = lb->counts.code;
+		break;
+	case LOC_SORT_COMMENT:
+		val_a = la->counts.comment;
+		val_b = lb->counts.comment;
+		break;
+	case LOC_SORT_BLANK:
+		val_a = la->counts.blank;
+		val_b = lb->counts.blank;
+		break;
+	case LOC_SORT_FILES:
+		val_a = la->files;
+		val_b = lb->files;
+		break;
+	case LOC_SORT_TOTAL:
+	default:
+		val_a = la->counts.code + la->counts.comment + la->counts.blank;
+		val_b = lb->counts.code + lb->counts.comment + lb->counts.blank;
+		break;
+	}
+	return (val_b > val_a) ? 1 : (val_b < val_a) ? -1 : 0;
+}
+
+static inline __attribute__((cold)) int
+loc__file_cmp(const void* a, const void* b)
+{
+	const FileResult* fa = (const FileResult*) a;
+	const FileResult* fb = (const FileResult*) b;
+	long val_a = 0, val_b = 0;
+
+	switch (g_sort_order) {
+	case LOC_SORT_CODE:
+		val_a = fa->counts.code;
+		val_b = fb->counts.code;
+		break;
+	case LOC_SORT_COMMENT:
+		val_a = fa->counts.comment;
+		val_b = fb->counts.comment;
+		break;
+	case LOC_SORT_BLANK:
+		val_a = fa->counts.blank;
+		val_b = fb->counts.blank;
+		break;
+	case LOC_SORT_TOTAL:
+		val_a = fa->counts.code + fa->counts.comment + fa->counts.blank;
+		val_b = fb->counts.code + fb->counts.comment + fb->counts.blank;
+		break;
+	case LOC_SORT_FILES:
+		if (fa->path && fb->path) {
+			return strcmp(fa->path, fb->path);
+		}
+		return 0;
+	}
+	return (val_b > val_a) ? 1 : (val_b < val_a) ? -1 : 0;
 }
 
 /* Escape a string for JSON: replace " -> \" and \ -> \\ in-place into buf. */
@@ -258,6 +317,7 @@ static int loc__build_sums(const FileResult* files_v, LocSumParams params,
 		out_sums[found].counts.blank += (files_v + i)->counts.blank;
 	}
 
+	g_sort_order = params.sort_order;
 	qsort(out_sums, (size_t) n_sums, sizeof(LocLangSum), loc__sum_cmp);
 
 	for (int i = 0; i < n_sums; i++) {
@@ -274,16 +334,17 @@ static int loc__build_sums(const FileResult* files_v, LocSumParams params,
  */
 
 static void loc_print_json(const FileResult* files_v, int n_files,
- const Language* langs_v, int n_langs, bool show_files)
+ const Language* langs_v, int n_langs, bool show_files, LocSortOrder sort_order)
 {
 #define MAX_SUMS_JSON 1024
 	LocLangSum sums[MAX_SUMS_JSON];
 	long t_files = 0, t_code = 0, t_comm = 0, t_blank = 0;
 
 	int n_sums = loc__build_sums(files_v,
-	 (LocSumParams) {n_files, n_langs, MAX_SUMS_JSON}, sums, &t_files, &t_code,
-	 &t_comm, &t_blank);
+	 (LocSumParams) {n_files, n_langs, MAX_SUMS_JSON, sort_order}, sums,
+	 &t_files, &t_code, &t_comm, &t_blank);
 	long grand_total = t_code + t_comm + t_blank;
+
 
 	char esc[1024];
 
@@ -371,7 +432,8 @@ static void loc_print_json(const FileResult* files_v, int n_files,
  */
 
 static void loc_print_html(const FileResult* files_v, int n_files,
- const Language* langs_v, int n_langs, bool show_files, bool verbose)
+ const Language* langs_v, int n_langs, bool show_files, bool verbose,
+ LocSortOrder sort_order)
 {
 	(void) verbose;
 
@@ -389,8 +451,8 @@ static void loc_print_html(const FileResult* files_v, int n_files,
 	long t_blank = 0;
 
 	int n_sums = loc__build_sums(files_v,
-	 (LocSumParams) {n_files, n_langs, MAX_SUMS_HTML}, sums, &t_files, &t_code,
-	 &t_comment, &t_blank);
+	 (LocSumParams) {n_files, n_langs, MAX_SUMS_HTML, sort_order}, sums,
+	 &t_files, &t_code, &t_comment, &t_blank);
 
 	long grand_total = t_code + t_comment + t_blank;
 
@@ -507,15 +569,15 @@ static void loc_print_html(const FileResult* files_v, int n_files,
  */
 
 static void loc_print_sql(const FileResult* files_v, int n_files,
- const Language* langs_v, int n_langs, bool show_files)
+ const Language* langs_v, int n_langs, bool show_files, LocSortOrder sort_order)
 {
 #define MAX_SUMS_SQL 1024
 	LocLangSum sums[MAX_SUMS_SQL];
 	long t_files = 0, t_code = 0, t_comm = 0, t_blank = 0;
 
 	int n_sums = loc__build_sums(files_v,
-	 (LocSumParams) {n_files, n_langs, MAX_SUMS_SQL}, sums, &t_files, &t_code,
-	 &t_comm, &t_blank);
+	 (LocSumParams) {n_files, n_langs, MAX_SUMS_SQL, sort_order}, sums,
+	 &t_files, &t_code, &t_comm, &t_blank);
 
 	long grand_total = t_code + t_comm + t_blank;
 
@@ -616,8 +678,9 @@ static void loc_print_sql(const FileResult* files_v, int n_files,
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
-static inline void loc_print_terminal(const FileResult* files_v, int n_files,
- const Language* langs_v, int n_langs, bool show_files, bool verbose)
+static inline void loc_print_terminal(FileResult* files_v, int n_files,
+ const Language* langs_v, int n_langs, bool show_files, bool verbose,
+ LocSortOrder sort_order)
 {
 #define MAX_SUMS_TERM 1024
 
@@ -638,12 +701,15 @@ static inline void loc_print_terminal(const FileResult* files_v, int n_files,
 	long t_blank = 0;
 
 	int n_sums = loc__build_sums(files_v,
-	 (LocSumParams) {n_files, n_langs, MAX_SUMS_TERM}, sums, &t_files, &t_code,
-	 &t_comment, &t_blank);
+	 (LocSumParams) {n_files, n_langs, MAX_SUMS_TERM, sort_order}, sums,
+	 &t_files, &t_code, &t_comment, &t_blank);
 
 	long grand_total = t_code + t_comment + t_blank;
 
 	if (show_files) {
+		g_sort_order = sort_order;
+		qsort(files_v, (size_t) n_files, sizeof(FileResult), loc__file_cmp);
+
 		printf("\n%sPer-File Results%s\n\n", LOC_TERM_CYAN, LOC_TERM_RESET);
 
 		if (verbose) {
@@ -732,21 +798,24 @@ static inline void loc_print_terminal(const FileResult* files_v, int n_files,
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
-static void loc_print_report(LocOutputFormat fmt, const FileResult* files,
- int n_files, const Language* langs, int n_langs, bool show_files, bool verbose)
+static void loc_print_report(LocOutputFormat fmt, FileResult* files, int n_files,
+ const Language* langs, int n_langs, bool show_files, bool verbose,
+ LocSortOrder sort_order)
 {
 	switch (fmt) {
 	case LOC_FMT_JSON:
-		loc_print_json(files, n_files, langs, n_langs, show_files);
+		loc_print_json(files, n_files, langs, n_langs, show_files, sort_order);
 		break;
 	case LOC_FMT_HTML:
-		loc_print_html(files, n_files, langs, n_langs, show_files, verbose);
+		loc_print_html(files, n_files, langs, n_langs, show_files, verbose,
+		 sort_order);
 		break;
 	case LOC_FMT_SQL:
-		loc_print_sql(files, n_files, langs, n_langs, show_files);
+		loc_print_sql(files, n_files, langs, n_langs, show_files, sort_order);
 		break;
 	case LOC_FMT_TERMINAL:
-		loc_print_terminal(files, n_files, langs, n_langs, show_files, verbose);
+		loc_print_terminal(files, n_files, langs, n_langs, show_files, verbose,
+		 sort_order);
 		break;
 
 	default:
