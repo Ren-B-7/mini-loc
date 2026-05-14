@@ -29,7 +29,7 @@ For most i am willing to bet that single-threaded will be good enough, but when 
 | **Node.js**      | ~1.1s           | ~0.7s          | ~0.95s         |
 | **Ladybird**     | ~0.25s          | ~0.18s         | ~0.2s          |
 | **Rust**         | ~0.4s           | ~0.3s          | ~0.4s          |
-| **Vscode**       | ~0.09s          | ~0.08s         | ~0.07s         |
+| **Vscode**       | ~0.09s          | ~0.03s         | ~0.07s         |
 | **Pi-hole**      | ~0.003s         | ~0.003s        | ~0.004s        |
 
 ### Multi-Threaded Performance
