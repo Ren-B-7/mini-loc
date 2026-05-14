@@ -65,7 +65,7 @@ else
 endif
 
 ALL_CFLAGS = $(CFLAGS) $(SELECTED_HARDENING_C) $(OPTFLAGS) $(PGO_FLAGS) -pthread
-ALL_LDFLAGS = $(SELECTED_HARDENING_L) $(PGO_FLAGS) -flto -lcjson
+ALL_LDFLAGS = $(SELECTED_HARDENING_L) $(PGO_FLAGS) -lcjson
 
 # Targets
 .PHONY: all clean run format lint check directories install uninstall build-json single multi pgo-gen optimized
