@@ -155,13 +155,19 @@ Counts count_file(const char* path, int lang_idx)
 	while (p < end) {
 		unsigned char ch = (unsigned char) *p;
 
+		if (char_table[ch] & CHAR_NEWLINE) {
+			finalize_line(&s, &c);
+			if (s.state == SCAN_LINE_COMMENT) {
+				s.state = SCAN_NORMAL;
+			}
+			p++;
+			continue;
+		}
+
 		switch (s.state) {
 		case SCAN_NORMAL: {
 			bool matched = false;
 
-			/*
-			 * Fast whitespace path
-			 */
 			if (is_whitespace(ch)) {
 				break;
 			}
@@ -253,9 +259,7 @@ Counts count_file(const char* path, int lang_idx)
 		}
 
 		case SCAN_LINE_COMMENT:
-
 			s.line_has_comment = true;
-
 			break;
 
 		case SCAN_BLOCK_COMMENT: {
@@ -269,9 +273,7 @@ Counts count_file(const char* path, int lang_idx)
 			if (ml->nested && *p == ml->start[0] &&
 			 match_token(p, end, ml->start, ml->start_len)) {
 				s.block_depth++;
-
 				p += ml->start_len - 1;
-
 				break;
 			}
 
@@ -280,20 +282,16 @@ Counts count_file(const char* path, int lang_idx)
 			 */
 			if (*p == ml->end[0] && match_token(p, end, ml->end, ml->end_len)) {
 				s.block_depth--;
-
 				p += ml->end_len - 1;
-
 				if (s.block_depth == 0) {
 					s.state = SCAN_NORMAL;
 				}
 			}
-
 			break;
 		}
 
 		case SCAN_STRING: {
 			QuoteRule* q = &lang->quotes[s.quote_index];
-
 			s.line_has_code = true;
 
 			/*
@@ -301,7 +299,6 @@ Counts count_file(const char* path, int lang_idx)
 			 */
 			if (q->escape && (char_table[ch] & CHAR_BACKSLASH) && p + 1 < end) {
 				p++;
-
 				break;
 			}
 
@@ -310,23 +307,10 @@ Counts count_file(const char* path, int lang_idx)
 			 */
 			if (*p == q->end[0] && match_token(p, end, q->end, q->end_len)) {
 				p += q->end_len - 1;
-
 				s.state = SCAN_NORMAL;
 			}
-
 			break;
 		}
-		}
-
-		/*
-		 * Newline handling
-		 */
-		if (char_table[ch] & CHAR_NEWLINE) {
-			finalize_line(&s, &c);
-
-			if (s.state == SCAN_LINE_COMMENT) {
-				s.state = SCAN_NORMAL;
-			}
 		}
 
 		p++;
@@ -335,7 +319,7 @@ Counts count_file(const char* path, int lang_idx)
 	/*
 	 * Final line without trailing newline
 	 */
-	if (s.line_has_code || s.line_has_comment) {
+	if (s.line_has_code || s.line_has_comment || (p > buf && !(char_table[(unsigned char)*(p-1)] & CHAR_NEWLINE))) {
 		finalize_line(&s, &c);
 	}
 
