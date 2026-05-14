@@ -12,6 +12,8 @@ typedef struct {
 	bool verbose;
 
 	char* filter;
+	char* lang_load_path;
+	char* lang_append_path;
 
 	LocOutputFormat output_fmt;
 } LocConfig;

@@ -18,6 +18,14 @@ __attribute__((cold)) void parse_cli(LocConfig* cfg, int argc, char** argv)
 			cfg->show_files = true;
 		} else if (strcmp(argv[i], "--list-unknown") == 0) {
 			cfg->list_unknown = true;
+		} else if (
+		 (strcmp(argv[i], "-l") == 0 || strcmp(argv[i], "--load") == 0) &&
+		 i + 1 < argc) {
+			cfg->lang_load_path = argv[++i];
+		} else if (
+		 (strcmp(argv[i], "-a") == 0 || strcmp(argv[i], "--append") == 0) &&
+		 i + 1 < argc) {
+			cfg->lang_append_path = argv[++i];
 		} else if (strcmp(argv[i], "--verbose") == 0) {
 			cfg->verbose = true;
 		} else if (strcmp(argv[i], "--filter") == 0 && i + 1 < argc) {

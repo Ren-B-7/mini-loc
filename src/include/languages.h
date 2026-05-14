@@ -16,15 +16,20 @@ extern Language g_langs[MAX_LANGS];
 extern int g_n_langs;
 
 /*
- * Load language definitions from embedded JSON.
+ * Load language definitions from embedded static data.
+ */
+void load_languages(void);
+
+/*
+ * Load language definitions from an external JSON file.
  *
  * append == false:
- *     resets all currently loaded languages
+ *     replaces all currently loaded languages (including built-ins)
  *
  * append == true:
  *     appends to existing language table
  */
-void load_languages(const unsigned char* data, size_t len, bool append);
+void load_languages_from_file(const char* path, bool append);
 
 /*
  * Builds the extension -> language lookup table.

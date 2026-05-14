@@ -334,12 +334,12 @@ static void loc_print_json(const FileResult* files_v, int n_files,
 			const char* path = (files_v + i)->path;
 			const char* ext = (files_v + i)->ext;
 			int li = (files_v + i)->lang_idx;
-			const char* lang =
+			const char* lang_name =
 			 (li >= 0 && li < n_langs) ? (langs_v + li)->name : "(unknown)";
 
 			char esc_path[4096], esc_lang[128];
 			loc__json_escape(path ? path : "", esc_path, sizeof(esc_path));
-			loc__json_escape(lang, esc_lang, sizeof(esc_lang));
+			loc__json_escape(lang_name, esc_lang, sizeof(esc_lang));
 
 			uint32_t code = (files_v + i)->counts.code;
 			uint32_t comment = (files_v + i)->counts.comment;
@@ -586,13 +586,13 @@ static void loc_print_sql(const FileResult* files_v, int n_files,
 			const char* path = (files_v + i)->path;
 			const char* ext = (files_v + i)->ext;
 			int li = (files_v + i)->lang_idx;
-			const char* lang =
+			const char* lang_name =
 			 (li >= 0 && li < n_langs) ? (langs_v + li)->name : "(unknown)";
 
 			char esc_path[4096], esc_ext[64], esc_lang[128];
 			loc__sql_escape(path ? path : "", esc_path, sizeof(esc_path));
 			loc__sql_escape(ext ? ext : "", esc_ext, sizeof(esc_ext));
-			loc__sql_escape(lang, esc_lang, sizeof(esc_lang));
+			loc__sql_escape(lang_name, esc_lang, sizeof(esc_lang));
 
 			uint32_t code = (files_v + i)->counts.code;
 			uint32_t comment = (files_v + i)->counts.comment;

@@ -83,6 +83,7 @@ typedef struct {
 	uint16_t n_line_comments;
 	uint16_t n_multi_line;
 	uint16_t n_quotes;
+	uint16_t n_complexity;
 
 	char extensions[MAX_EXTENSIONS][MAX_EXT_LEN];
 

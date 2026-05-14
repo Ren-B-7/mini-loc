@@ -46,14 +46,29 @@ __attribute__((cold)) int main(int argc, char** argv)
 {
 	loc_config_init(&g_cfg);
 	parse_cli(&g_cfg, argc, argv);
-	load_languages(languages_json, languages_json_len, false);
+	load_languages();
+
+	if (g_cfg.lang_load_path) {
+		load_languages_from_file(g_cfg.lang_load_path, false);
+	}
+	if (g_cfg.lang_append_path) {
+		load_languages_from_file(g_cfg.lang_append_path, true);
+	}
+
 	build_lookup_table();
 	bool any_path = false;
 	for (int i = 1; i < argc; i++) {
-		if (argv[i][0] != '-') {
-			process_path(argv[i], g_cfg.recurse, process_file_cb, NULL);
-			any_path = true;
+		if (argv[i][0] == '-') {
+			if (strcmp(argv[i], "-l") == 0 || strcmp(argv[i], "--load") == 0 ||
+			 strcmp(argv[i], "-a") == 0 || strcmp(argv[i], "--append") == 0 ||
+			 strcmp(argv[i], "--filter") == 0 || strcmp(argv[i], "-o") == 0 ||
+			 strcmp(argv[i], "--output") == 0) {
+				i++;
+			}
+			continue;
 		}
+		process_path(argv[i], g_cfg.recurse, process_file_cb, NULL);
+		any_path = true;
 	}
 	if (!any_path) {
 		process_path(".", g_cfg.recurse, process_file_cb, NULL);

@@ -1,5 +1,6 @@
 #include "include/languages.h"
 
+#include <cjson/cJSON.h>
 #include <ctype.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -16,508 +17,183 @@ int g_n_langs = 0;
 static ExtEntry g_ext_table[MAX_LANGS * MAX_EXTENSIONS];
 static int g_n_ext_entries = 0;
 
-static const char* json_skip_whitespace(const char* p)
+void load_languages(void)
 {
-	while (p && *p && isspace((unsigned char) *p)) {
-		p++;
-	}
+	g_n_langs = 0;
 
-	return p;
+	for (int i = 0; i < g_n_langs_data && i < MAX_LANGS; i++) {
+		g_langs[g_n_langs++] = g_langs_data[i];
+	}
 }
 
-static const char* json_read_string(const char* p, char* buf, size_t len)
+void load_languages_from_file(const char* path, bool append)
 {
-	p = json_skip_whitespace(p);
-
-	if (!p || *p != '"') {
-		return NULL;
-	}
-
-	p++;
-
-	size_t i = 0;
-	bool escaped = false;
-
-	while (*p) {
-		if (!escaped && *p == '"') {
-			break;
-		}
-
-		if (i < len - 1) {
-			buf[i++] = *p;
-		}
-
-		escaped = (!escaped && *p == '\\');
-
-		p++;
-	}
-
-	if (!*p) {
-		return NULL;
-	}
-
-	buf[i] = '\0';
-
-	if (*p == '"') {
-		p++;
-	}
-
-	return p;
-}
-
-static const char* json_skip_value(const char* p)
-{
-	p = json_skip_whitespace(p);
-
-	if (!p) {
-		return NULL;
-	}
-
-	if (*p == '"') {
-		char tmp[2];
-
-		return json_read_string(p, tmp, sizeof(tmp));
-
-	} else if (*p == '[' || *p == '{') {
-		char open = *p;
-		char close = (open == '[') ? ']' : '}';
-
-		int depth = 1;
-
-		p++;
-
-		while (*p && depth > 0) {
-			if (*p == open) {
-				depth++;
-			} else if (*p == close) {
-				depth--;
-			}
-
-			p++;
-		}
-
-	} else {
-		while (*p && !strchr(",]} \n\r\t", *p)) {
-			p++;
-		}
-	}
-
-	return p;
-}
-
-static const char* parse_extensions(const char* p, Language* lang)
-{
-	if (*p != '[') {
-		return p;
-	}
-
-	p++;
-
-	while (*p && *p != ']') {
-		p = json_skip_whitespace(p);
-
-		if (lang->n_extensions >= MAX_EXTENSIONS) {
-			p = json_skip_value(p);
-		} else {
-			p = json_read_string(p, lang->extensions[lang->n_extensions],
-			 MAX_EXT_LEN);
-			if (!p) {
-				break;
-			}
-
-			lang->n_extensions++;
-		}
-
-		p = json_skip_whitespace(p);
-
-		if (*p == ',') {
-			p++;
-		}
-	}
-
-	if (*p == ']') {
-		p++;
-	}
-
-	return p;
-}
-
-static const char* parse_line_comments(const char* p, Language* lang)
-{
-	if (*p != '[') {
-		return p;
-	}
-
-	p++;
-
-	while (*p && *p != ']') {
-		p = json_skip_whitespace(p);
-
-		if (lang->n_line_comments >= MAX_LINE_COMMENTS) {
-			p = json_skip_value(p);
-		} else {
-			LineCommentRule* lc = &lang->line_comments[lang->n_line_comments];
-
-			memset(lc, 0, sizeof(*lc));
-
-			p = json_read_string(p, lc->start, MAX_COMMENT_LEN);
-
-			lc->len = (uint8_t) strlen(lc->start);
-
-			lang->n_line_comments++;
-		}
-
-		p = json_skip_whitespace(p);
-
-		if (*p == ',') {
-			p++;
-		}
-	}
-
-	if (*p == ']') {
-		p++;
-	}
-
-	return p;
-}
-
-static const char* parse_multi_line(const char* p, Language* lang)
-{
-	if (*p != '[') {
-		return p;
-	}
-
-	p++;
-
-	while (*p && *p != ']') {
-		p = json_skip_whitespace(p);
-
-		if (*p != '[') {
-			p = json_skip_value(p);
-			continue;
-		}
-
-		p++;
-
-		if (lang->n_multi_line >= MAX_BLOCK_COMMENTS) {
-			p = json_skip_value(p);
-		} else {
-			MultiLineRule* ml = &lang->multi_line[lang->n_multi_line];
-
-			memset(ml, 0, sizeof(*ml));
-
-			p = json_read_string(p, ml->start, MAX_COMMENT_LEN);
-
-			ml->start_len = (uint8_t) strlen(ml->start);
-
-			p = json_skip_whitespace(p);
-
-			if (*p == ',') {
-				p++;
-			}
-
-			p = json_read_string(p, ml->end, MAX_COMMENT_LEN);
-
-			ml->end_len = (uint8_t) strlen(ml->end);
-
-			/*
-			 * Default false for now.
-			 * Can later load from JSON.
-			 */
-			ml->nested = false;
-
-			lang->n_multi_line++;
-		}
-
-		p = json_skip_whitespace(p);
-
-		if (*p == ']') {
-			p++;
-		}
-
-		p = json_skip_whitespace(p);
-
-		if (*p == ',') {
-			p++;
-		}
-	}
-
-	if (*p == ']') {
-		p++;
-	}
-
-	return p;
-}
-
-static const char* parse_quotes(const char* p, Language* lang)
-{
-	if (*p != '[') {
-		return p;
-	}
-
-	p++;
-
-	while (*p && *p != ']') {
-		p = json_skip_whitespace(p);
-
-		if (*p != '{') {
-			p = json_skip_value(p);
-			continue;
-		}
-
-		p++;
-
-		if (lang->n_quotes >= MAX_QUOTES) {
-			p = json_skip_value(p);
-		} else {
-			QuoteRule* q = &lang->quotes[lang->n_quotes];
-
-			memset(q, 0, sizeof(*q));
-
-			while (*p && *p != '}') {
-				char key[32];
-
-				p = json_read_string(p, key, sizeof(key));
-				if (!p) {
-					break;
-				}
-
-				p = json_skip_whitespace(p);
-
-				if (*p == ':') {
-					p++;
-				}
-
-				p = json_skip_whitespace(p);
-
-				switch (key[0]) {
-				case 's':
-
-					if (strcmp(key, "start") == 0) {
-						p = json_read_string(p, q->start, sizeof(q->start));
-
-						q->start_len = (uint8_t) strlen(q->start);
-
-					} else {
-						p = json_skip_value(p);
-					}
-
-					break;
-
-				case 'e':
-
-					if (strcmp(key, "end") == 0) {
-						p = json_read_string(p, q->end, sizeof(q->end));
-
-						q->end_len = (uint8_t) strlen(q->end);
-
-					} else {
-						p = json_skip_value(p);
-					}
-
-					break;
-
-				default:
-					p = json_skip_value(p);
-					break;
-				}
-
-				p = json_skip_whitespace(p);
-
-				if (*p == ',') {
-					p++;
-				}
-			}
-
-			/*
-			 * Assume C-style escaping for now.
-			 */
-			q->escape = true;
-			q->multiline = false;
-
-			lang->n_quotes++;
-		}
-
-		if (*p == '}') {
-			p++;
-		}
-
-		p = json_skip_whitespace(p);
-
-		if (*p == ',') {
-			p++;
-		}
-	}
-
-	if (*p == ']') {
-		p++;
-	}
-
-	return p;
-}
-
-void load_languages(const unsigned char* data, size_t len, bool append)
-{
-	(void) len;
-
 	if (!append) {
 		g_n_langs = 0;
 	}
 
+	FILE* f = fopen(path, "rb");
+	if (!f) {
+		return;
+	}
+
+	fseek(f, 0, SEEK_END);
+	long len = ftell(f);
+	fseek(f, 0, SEEK_SET);
+
+	if (len <= 0) {
+		fclose(f);
+		return;
+	}
+
+	char* data = malloc((size_t) len + 1);
 	if (!data) {
+		fclose(f);
 		return;
 	}
 
-	const char* p = (const char*) data;
+	if (fread(data, 1, (size_t) len, f) != (size_t) len) {
+		free(data);
+		fclose(f);
+		return;
+	}
+	data[len] = '\0';
+	fclose(f);
 
-	p = json_skip_whitespace(p);
+	cJSON* root = cJSON_Parse(data);
+	free(data);
 
-	/*
-	 * New SCC format:
-	 *
-	 * {
-	 *   "C": { ... },
-	 *   "Rust": { ... }
-	 * }
-	 */
-	if (!p || *p != '{') {
+	if (!root) {
 		return;
 	}
 
-	p++;
-
-	while (p && *p && *p != '}' && g_n_langs < MAX_LANGS) {
-		char lang_name[MAX_LANG_NAME_LEN];
-
-		p = json_skip_whitespace(p);
-
-		p = json_read_string(p, lang_name, sizeof(lang_name));
-
-		if (!p) {
+	cJSON* lang_node = NULL;
+	cJSON_ArrayForEach(lang_node, root)
+	{
+		if (g_n_langs >= MAX_LANGS) {
 			break;
 		}
 
-		p = json_skip_whitespace(p);
+		Language* l = &g_langs[g_n_langs++];
+		memset(l, 0, sizeof(Language));
 
-		if (*p != ':') {
-			break;
+		if (lang_node->string) {
+			strncpy(l->name, lang_node->string, MAX_LANG_NAME_LEN - 1);
+			l->name[MAX_LANG_NAME_LEN - 1] = '\0';
 		}
 
-		p++;
-
-		p = json_skip_whitespace(p);
-
-		if (*p != '{') {
-			break;
+		cJSON* data_only = cJSON_GetObjectItem(lang_node, "data_only");
+		if (cJSON_IsBool(data_only)) {
+			l->data_only = (bool) cJSON_IsTrue(data_only);
 		}
 
-		p++;
-
-		Language temp;
-
-		memset(&temp, 0, sizeof(Language));
-
-		printf("DEBUG: Parsed %s\n", lang_name);
-		strncpy(temp.name, lang_name, MAX_LANG_NAME_LEN - 1);
-
-		while (p && *p && *p != '}') {
-			char key[64];
-
-			p = json_read_string(p, key, sizeof(key));
-			if (!p) {
-				break;
+		cJSON* extensions = cJSON_GetObjectItem(lang_node, "extensions");
+		if (cJSON_IsArray(extensions)) {
+			cJSON* ext = NULL;
+			cJSON_ArrayForEach(ext, extensions)
+			{
+				if (l->n_extensions >= MAX_EXTENSIONS) {
+					break;
+				}
+				if (cJSON_IsString(ext)) {
+					strncpy(l->extensions[l->n_extensions], ext->valuestring,
+					 MAX_EXT_LEN - 1);
+					l->extensions[l->n_extensions][MAX_EXT_LEN - 1] = '\0';
+					l->n_extensions++;
+				}
 			}
+		}
 
-			p = json_skip_whitespace(p);
-
-			if (*p == ':') {
-				p++;
+		cJSON* line_comments = cJSON_GetObjectItem(lang_node, "line_comment");
+		if (cJSON_IsArray(line_comments)) {
+			cJSON* lc = NULL;
+			cJSON_ArrayForEach(lc, line_comments)
+			{
+				if (l->n_line_comments >= MAX_LINE_COMMENTS) {
+					break;
+				}
+				if (cJSON_IsString(lc)) {
+					LineCommentRule* r =
+					 &l->line_comments[l->n_line_comments++];
+					strncpy(r->start, lc->valuestring, MAX_COMMENT_LEN - 1);
+					r->start[MAX_COMMENT_LEN - 1] = '\0';
+					r->len = (uint8_t) strlen(r->start);
+				}
 			}
+		}
 
-			p = json_skip_whitespace(p);
-
-			switch (key[0]) {
-			case 'e':
-
-				if (strcmp(key, "extensions") == 0) {
-					p = parse_extensions(p, &temp);
-				} else {
-					p = json_skip_value(p);
+		cJSON* multi_line = cJSON_GetObjectItem(lang_node, "multi_line");
+		if (cJSON_IsArray(multi_line)) {
+			cJSON* ml = NULL;
+			cJSON_ArrayForEach(ml, multi_line)
+			{
+				if (l->n_multi_line >= MAX_BLOCK_COMMENTS) {
+					break;
 				}
-
-				break;
-
-			case 'l':
-
-				if (strcmp(key, "line_comment") == 0) {
-					p = parse_line_comments(p, &temp);
-				} else {
-					p = json_skip_value(p);
-				}
-
-				break;
-
-			case 'm':
-
-				if (strcmp(key, "multi_line") == 0) {
-					p = parse_multi_line(p, &temp);
-				} else {
-					p = json_skip_value(p);
-				}
-
-				break;
-
-			case 'q':
-
-				if (strcmp(key, "quotes") == 0) {
-					p = parse_quotes(p, &temp);
-				} else {
-					p = json_skip_value(p);
-				}
-
-				break;
-
-			case 'd':
-
-				if (strcmp(key, "data_only") == 0) {
-					if (strncmp(p, "true", 4) == 0) {
-						temp.data_only = true;
-						p += 4;
-					} else if (strncmp(p, "false", 5) == 0) {
-						temp.data_only = false;
-						p += 5;
+				if (cJSON_IsArray(ml) && cJSON_GetArraySize(ml) == 2) {
+					MultiLineRule* r = &l->multi_line[l->n_multi_line++];
+					cJSON* start = cJSON_GetArrayItem(ml, 0);
+					cJSON* end = cJSON_GetArrayItem(ml, 1);
+					if (cJSON_IsString(start) && cJSON_IsString(end)) {
+						strncpy(r->start, start->valuestring,
+						 MAX_COMMENT_LEN - 1);
+						r->start[MAX_COMMENT_LEN - 1] = '\0';
+						r->start_len = (uint8_t) strlen(r->start);
+						strncpy(r->end, end->valuestring, MAX_COMMENT_LEN - 1);
+						r->end[MAX_COMMENT_LEN - 1] = '\0';
+						r->end_len = (uint8_t) strlen(r->end);
+						r->nested = false;
 					}
-
-				} else {
-					p = json_skip_value(p);
 				}
-
-				break;
-
-			default:
-				p = json_skip_value(p);
-				break;
-			}
-
-			p = json_skip_whitespace(p);
-
-			if (*p == ',') {
-				p++;
 			}
 		}
 
-		if (p && *p == '}') {
-			p++;
+		cJSON* quotes = cJSON_GetObjectItem(lang_node, "quotes");
+		if (cJSON_IsArray(quotes)) {
+			cJSON* q = NULL;
+			cJSON_ArrayForEach(q, quotes)
+			{
+				if (l->n_quotes >= MAX_QUOTES) {
+					break;
+				}
+				if (cJSON_IsObject(q)) {
+					QuoteRule* r = &l->quotes[l->n_quotes++];
+					cJSON* start = cJSON_GetObjectItem(q, "start");
+					cJSON* end = cJSON_GetObjectItem(q, "end");
+					if (cJSON_IsString(start)) {
+						strncpy(r->start, start->valuestring, 7);
+						r->start[7] = '\0';
+						r->start_len = (uint8_t) strlen(r->start);
+					}
+					if (cJSON_IsString(end)) {
+						strncpy(r->end, end->valuestring, 7);
+						r->end[7] = '\0';
+						r->end_len = (uint8_t) strlen(r->end);
+					}
+					r->escape = true;
+				}
+			}
 		}
 
-		g_langs[g_n_langs++] = temp;
-
-		p = json_skip_whitespace(p);
-
-		if (p && *p == ',') {
-			p++;
+		cJSON* complexity = cJSON_GetObjectItem(lang_node, "complexitychecks");
+		if (cJSON_IsArray(complexity)) {
+			cJSON* cx = NULL;
+			cJSON_ArrayForEach(cx, complexity)
+			{
+				if (l->n_complexity >= MAX_COMPLEXITY_CHECKS) {
+					break;
+				}
+				if (cJSON_IsString(cx)) {
+					ComplexityRule* r = &l->complexity[l->n_complexity++];
+					strncpy(r->token, cx->valuestring, MAX_COMPLEXITY_LEN - 1);
+					r->token[MAX_COMPLEXITY_LEN - 1] = '\0';
+					r->len = (uint8_t) strlen(r->token);
+				}
+			}
 		}
 	}
+
+	cJSON_Delete(root);
 }
 
 static __attribute__((cold)) int ext_entry_cmp(const void* a, const void* b)
