@@ -9,7 +9,7 @@ A big thank you to [Ben Boyter](https://github.com/boyter/scc/), and his write u
 ## Performance
 
 Built with speed in mind, `mini-loc` handles massive codebases in sub-second times.
-(Ran on an i7-1156G7; 24 GBs of ram; On an m.2 NVME)
+
 
 There are the make targets for `pgo-gen`, `copy-optimized`, and make `optimized`. To make profiled optimized builds.
 `copy-optimized` is to ensure the .gitignore doesnt drop the `.gcda` profiles for the 3 targets.
@@ -20,6 +20,8 @@ seconds, with pihole i am willing to bet they are either the exact same or actua
 while the gap with the linux kernel is nearly a factor of 4
 
 For most i am willing to bet that single-threaded will be good enough, but when indexing a large repo or a large number of repos i would say go for the multi-threaded approach.
+
+(Ran on an i7-1156G7; 24 GBs of ram; On an m.2 NVME)
 
 | Target           | Single-Threaded | Multi-Threaded |
 | :--------------- | :-------------- | :------------- |
