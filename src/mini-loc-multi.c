@@ -141,8 +141,9 @@ __attribute__((cold)) int main(int argc, char** argv)
 		free(states[i].files);
 	}
 	loc_print_report(g_cfg.output_fmt, all_files, total_files, g_langs,
-	 g_n_langs, g_cfg.show_files, g_cfg.verbose, g_cfg.no_bytes,
-	 g_cfg.total_bytes, g_cfg.sort_order);
+	 g_n_langs,
+	 (LocOutputParams) {g_cfg.show_files, g_cfg.verbose, g_cfg.no_bytes,
+	     g_cfg.total_bytes, g_cfg.sort_order});
 	if (all_files) {
 		for (int i = 0; i < total_files; i++) {
 			free(all_files[i].path);
