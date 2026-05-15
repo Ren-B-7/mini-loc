@@ -33,15 +33,15 @@ For most i am willing to bet that single-threaded will be good enough, but when 
 
 ### Multi-Threaded Performance
 
-![Performance Breakdowns Linux + Rust Multi](Linux_and_Rust_index_multi.png)
-![Performance Breakdowns Ladybird + Node Multi](Ladybird_and_Node_index_multi.png)
-![Performance Breakdowns Vscode + Pihole Multi](Vscode_and_Pihole_index_multi.png)
+![Performance Breakdowns Linux + Rust Multi](assets/images/Linux_and_Rust_index_multi.png)
+![Performance Breakdowns Ladybird + Node Multi](assets/images/Ladybird_and_Node_index_multi.png)
+![Performance Breakdowns Vscode + Pihole Multi](assets/images/Vscode_and_Pihole_index_multi.png)
 
 ### Single-Threaded Performance
 
-![Performance Breakdowns Linux + Rust Single](Linux_and_Rust_index_single.png)
-![Performance Breakdowns Ladybird + Node Single](Ladybird_and_Node_index_single.png)
-![Performance Breakdowns Vscode + Pihole Single](Vscode_and_Pihole_index_single.png)
+![Performance Breakdowns Linux + Rust Single](assets/images/Linux_and_Rust_index_single.png)
+![Performance Breakdowns Ladybird + Node Single](assets/images/Ladybird_and_Node_index_single.png)
+![Performance Breakdowns Vscode + Pihole Single](assets/images/Vscode_and_Pihole_index_single.png)
 
 ## Building
 
