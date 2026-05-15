@@ -1,0 +1,83 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  format-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y clang-format clang-tidy libcjson-dev
+      - name: Install mbake
+        run: pip install mbake --break-system-packages
+      - name: Lint Makefile
+        run: mbake validate Makefile
+      - name: Check Makefile format
+        run: mbake format --check Makefile
+      - name: Check formatting
+        run: |
+          clang-format --version && clang-format --dry-run --style=file:./.clang-format -i src/*.c src/include/*.h
+      - name: Run linting
+        run: |
+          make lint
+
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+          - os: macos-latest
+          - os: windows-latest
+            msys_env: MINGW64
+            mingw_prefix: mingw-w64-x86_64
+    runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.os == 'windows-latest' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Linux ────────────────────────────────────────────────────────────
+      - name: Install cJSON (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libcjson-dev
+
+      # ── macOS ────────────────────────────────────────────────────────────
+      - name: Install cJSON (macOS)
+        if: runner.os == 'macOS'
+        run: brew install cjson
+
+      # ── Windows: MSYS2 + MinGW-w64 + cJSON ──────────────────────────────
+      # MSYS2 is pre-installed on windows-latest. We use the MINGW64
+      # environment which provides: gcc, make, pthread (winpthreads),
+      # dirent.h, and cJSON — everything this project needs.
+      - name: Set up MSYS2 and install dependencies (Windows)
+        if: runner.os == 'Windows'
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-make
+            mingw-w64-x86_64-cjson
+            make
+
+      # ── Build ────────────────────────────────────────────────────────────
+      - name: Build (Linux / macOS)
+        if: runner.os != 'Windows'
+        run: make
+
+      - name: Build (Windows / MinGW64)
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: |
+          # MinGW64 installs cJSON under its own prefix; tell make where it is
+          MINGW_PREFIX="/mingw64"
+          mingw32-make \
+            CC=gcc \
+            CJSON_INC="-I${MINGW_PREFIX}/include" \
+            CJSON_LIB="-L${MINGW_PREFIX}/lib"

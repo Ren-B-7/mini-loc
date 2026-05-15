@@ -6,17 +6,17 @@
 #include "types.h"
 
 typedef struct {
-	bool recurse;
-	bool show_files;
-	bool list_unknown;
-	bool verbose;
+    bool recurse;
+    bool show_files;
+    bool list_unknown;
+    bool verbose;
 
-	char* filter;
-	char* lang_load_path;
-	char* lang_append_path;
+    char* filter;
+    char* lang_load_path;
+    char* lang_append_path;
 
-	LocOutputFormat output_fmt;
-	LocSortOrder sort_order;
+    LocOutputFormat output_fmt;
+    LocSortOrder sort_order;
 } LocConfig;
 
 void loc_config_init(LocConfig* cfg);

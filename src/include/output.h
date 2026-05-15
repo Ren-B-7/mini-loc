@@ -53,9 +53,9 @@
 /* Public types */
 
 typedef struct {
-	int lang_idx;
-	int files;
-	Counts counts;
+    int lang_idx;
+    int files;
+    Counts counts;
 } LocLangSum;
 
 /* Master dispatcher — call this instead of (or from within) print_report().
@@ -106,164 +106,164 @@ static LocSortOrder g_sort_order = LOC_SORT_TOTAL;
 static inline __attribute__((cold)) int
 loc__sum_cmp(const void* a, const void* b)
 {
-	const LocLangSum* la = (const LocLangSum*) a;
-	const LocLangSum* lb = (const LocLangSum*) b;
-	long val_a = 0, val_b = 0;
+    const LocLangSum* la = (const LocLangSum*) a;
+    const LocLangSum* lb = (const LocLangSum*) b;
+    long val_a = 0, val_b = 0;
 
-	switch (g_sort_order) {
-	case LOC_SORT_CODE:
-		val_a = la->counts.code;
-		val_b = lb->counts.code;
-		break;
-	case LOC_SORT_COMMENT:
-		val_a = la->counts.comment;
-		val_b = lb->counts.comment;
-		break;
-	case LOC_SORT_BLANK:
-		val_a = la->counts.blank;
-		val_b = lb->counts.blank;
-		break;
-	case LOC_SORT_FILES:
-		val_a = la->files;
-		val_b = lb->files;
-		break;
-	case LOC_SORT_TOTAL:
-	default:
-		val_a = la->counts.code + la->counts.comment + la->counts.blank;
-		val_b = lb->counts.code + lb->counts.comment + lb->counts.blank;
-		break;
-	}
-	return (val_b > val_a) ? 1 : (val_b < val_a) ? -1 : 0;
+    switch (g_sort_order) {
+    case LOC_SORT_CODE:
+        val_a = la->counts.code;
+        val_b = lb->counts.code;
+        break;
+    case LOC_SORT_COMMENT:
+        val_a = la->counts.comment;
+        val_b = lb->counts.comment;
+        break;
+    case LOC_SORT_BLANK:
+        val_a = la->counts.blank;
+        val_b = lb->counts.blank;
+        break;
+    case LOC_SORT_FILES:
+        val_a = la->files;
+        val_b = lb->files;
+        break;
+    case LOC_SORT_TOTAL:
+    default:
+        val_a = la->counts.code + la->counts.comment + la->counts.blank;
+        val_b = lb->counts.code + lb->counts.comment + lb->counts.blank;
+        break;
+    }
+    return (val_b > val_a) ? 1 : (val_b < val_a) ? -1 : 0;
 }
 
 static inline __attribute__((cold)) int
 loc__file_cmp(const void* a, const void* b)
 {
-	const FileResult* fa = (const FileResult*) a;
-	const FileResult* fb = (const FileResult*) b;
-	long val_a = 0, val_b = 0;
+    const FileResult* fa = (const FileResult*) a;
+    const FileResult* fb = (const FileResult*) b;
+    long val_a = 0, val_b = 0;
 
-	switch (g_sort_order) {
-	case LOC_SORT_CODE:
-		val_a = fa->counts.code;
-		val_b = fb->counts.code;
-		break;
-	case LOC_SORT_COMMENT:
-		val_a = fa->counts.comment;
-		val_b = fb->counts.comment;
-		break;
-	case LOC_SORT_BLANK:
-		val_a = fa->counts.blank;
-		val_b = fb->counts.blank;
-		break;
-	case LOC_SORT_TOTAL:
-		val_a = fa->counts.code + fa->counts.comment + fa->counts.blank;
-		val_b = fb->counts.code + fb->counts.comment + fb->counts.blank;
-		break;
-	case LOC_SORT_FILES:
-		if (fa->path && fb->path) {
-			return strcmp(fa->path, fb->path);
-		}
-		return 0;
-	}
-	return (val_b > val_a) ? 1 : (val_b < val_a) ? -1 : 0;
+    switch (g_sort_order) {
+    case LOC_SORT_CODE:
+        val_a = fa->counts.code;
+        val_b = fb->counts.code;
+        break;
+    case LOC_SORT_COMMENT:
+        val_a = fa->counts.comment;
+        val_b = fb->counts.comment;
+        break;
+    case LOC_SORT_BLANK:
+        val_a = fa->counts.blank;
+        val_b = fb->counts.blank;
+        break;
+    case LOC_SORT_TOTAL:
+        val_a = fa->counts.code + fa->counts.comment + fa->counts.blank;
+        val_b = fb->counts.code + fb->counts.comment + fb->counts.blank;
+        break;
+    case LOC_SORT_FILES:
+        if (fa->path && fb->path) {
+            return strcmp(fa->path, fb->path);
+        }
+        return 0;
+    }
+    return (val_b > val_a) ? 1 : (val_b < val_a) ? -1 : 0;
 }
 
 /* Escape a string for JSON: replace " -> \" and \ -> \\ in-place into buf. */
 static __attribute__((cold)) void
 loc__json_escape(const char* src, char* buf, size_t len)
 {
-	size_t j = 0;
-	for (size_t i = 0; src[i] && j + 2 < len; i++) {
-		if (src[i] == '"' || src[i] == '\\') {
-			buf[j++] = '\\';
-		}
-		buf[j++] = src[i];
-	}
-	buf[j] = '\0';
+    size_t j = 0;
+    for (size_t i = 0; src[i] && j + 2 < len; i++) {
+        if (src[i] == '"' || src[i] == '\\') {
+            buf[j++] = '\\';
+        }
+        buf[j++] = src[i];
+    }
+    buf[j] = '\0';
 }
 
 /* Escape a string for HTML: replace &, <, >, " with entities. */
 static __attribute__((cold)) void
 loc__html_escape(const char* src, char* buf, size_t len)
 {
-	size_t j = 0;
-	for (size_t i = 0; src[i] && j + 8 < len; i++) {
-		switch (src[i]) {
-		case '&':
-			memcpy(buf + j, "&amp;", 5);
-			j += 5;
-			break;
-		case '<':
-			memcpy(buf + j, "&lt;", 4);
-			j += 4;
-			break;
-		case '>':
-			memcpy(buf + j, "&gt;", 4);
-			j += 4;
-			break;
-		case '"':
-			memcpy(buf + j, "&quot;", 6);
-			j += 6;
-			break;
-		case '\'':
-			memcpy(buf + j, "&#39;", 5);
-			j += 5;
-			break;
-		default:
-			buf[j++] = src[i];
-			break;
-		}
-	}
-	buf[j] = '\0';
+    size_t j = 0;
+    for (size_t i = 0; src[i] && j + 8 < len; i++) {
+        switch (src[i]) {
+        case '&':
+            memcpy(buf + j, "&amp;", 5);
+            j += 5;
+            break;
+        case '<':
+            memcpy(buf + j, "&lt;", 4);
+            j += 4;
+            break;
+        case '>':
+            memcpy(buf + j, "&gt;", 4);
+            j += 4;
+            break;
+        case '"':
+            memcpy(buf + j, "&quot;", 6);
+            j += 6;
+            break;
+        case '\'':
+            memcpy(buf + j, "&#39;", 5);
+            j += 5;
+            break;
+        default:
+            buf[j++] = src[i];
+            break;
+        }
+    }
+    buf[j] = '\0';
 }
 
 /* SQL single-quote escaping: replace ' -> '' (ANSI SQL standard). */
 static __attribute__((cold)) void
 loc__sql_escape(const char* src, char* buf, size_t len)
 {
-	size_t j = 0;
-	for (size_t i = 0; src[i] && j + 2 < len; i++) {
-		if (src[i] == '\'') {
-			buf[j++] = '\'';
-		}
-		buf[j++] = src[i];
-	}
-	buf[j] = '\0';
+    size_t j = 0;
+    for (size_t i = 0; src[i] && j + 2 < len; i++) {
+        if (src[i] == '\'') {
+            buf[j++] = '\'';
+        }
+        buf[j++] = src[i];
+    }
+    buf[j] = '\0';
 }
 
 /* Generate an ISO-8601 UTC timestamp: "2025-05-12T14:30:00Z" */
 static inline __attribute__((cold)) void loc__iso8601_now(char* buf, size_t len)
 {
-	time_t t = time(NULL);
-	struct tm* gm = gmtime(&t);
-	if (gm) {
-		strftime(buf, len, "%Y-%m-%dT%H:%M:%SZ", gm);
-	} else {
-		strncpy(buf, "1970-01-01T00:00:00Z", len);
-		buf[len - 1] = '\0';
-	}
+    time_t t = time(NULL);
+    struct tm* gm = gmtime(&t);
+    if (gm) {
+        strftime(buf, len, "%Y-%m-%dT%H:%M:%SZ", gm);
+    } else {
+        strncpy(buf, "1970-01-01T00:00:00Z", len);
+        buf[len - 1] = '\0';
+    }
 }
 
 /* HTML helpers */
 #define LOC_HTML_HEADER \
-	"<!DOCTYPE html>\n" \
-	"<html lang=\"en\">\n" \
-	"<head>\n" \
-	"<meta charset=\"utf-8\">\n" \
-	"<title>mini-loc</title>\n" \
-	"<style>\n" \
-	"body{font-family:monospace;margin:20px;}\n" \
-	"table{border-collapse:collapse;}\n" \
-	"th,td{border:1px solid #ccc;padding:4px 8px;text-align:right;}\n" \
-	"th:first-child,td:first-child{text-align:left;}\n" \
-	"</style>\n" \
-	"</head>\n" \
-	"<body>\n"
+    "<!DOCTYPE html>\n" \
+    "<html lang=\"en\">\n" \
+    "<head>\n" \
+    "<meta charset=\"utf-8\">\n" \
+    "<title>mini-loc</title>\n" \
+    "<style>\n" \
+    "body{font-family:monospace;margin:20px;}\n" \
+    "table{border-collapse:collapse;}\n" \
+    "th,td{border:1px solid #ccc;padding:4px 8px;text-align:right;}\n" \
+    "th:first-child,td:first-child{text-align:left;}\n" \
+    "</style>\n" \
+    "</head>\n" \
+    "<body>\n"
 
 #define LOC_HTML_FOOTER \
-	"</body>\n" \
-	"</html>\n"
+    "</body>\n" \
+    "</html>\n"
 
 /* Terminal helpers */
 #define LOC_TERM_RESET "\033[0m"
@@ -276,57 +276,57 @@ static inline __attribute__((cold)) void loc__iso8601_now(char* buf, size_t len)
 static int loc__build_sums(const FileResult* files_v, LocSumParams params,
  LocLangSum* out_sums, long* t_files, long* t_code, long* t_comm, long* t_blank)
 {
-	/* lang_to_sum_idx maps (lang_idx+1) → position in out_sums.
-	 * Using a stack array since MAX_LANGS is small. */
-	int map_size = params.num_langs + 2; /* +1 for the sentinel, +1 for
-	                                        unknown(-1) */
-	int lang_to_sum[MAX_LANGS + 2];
-	if (map_size > (int) (sizeof(lang_to_sum) / sizeof(int))) {
-		return 0;
-	}
-	for (int i = 0; i < map_size; i++) {
-		lang_to_sum[i] = -1;
-	}
+    /* lang_to_sum_idx maps (lang_idx+1) → position in out_sums.
+     * Using a stack array since MAX_LANGS is small. */
+    int map_size = params.num_langs + 2; /* +1 for the sentinel, +1 for
+                                            unknown(-1) */
+    int lang_to_sum[MAX_LANGS + 2];
+    if (map_size > (int) (sizeof(lang_to_sum) / sizeof(int))) {
+        return 0;
+    }
+    for (int i = 0; i < map_size; i++) {
+        lang_to_sum[i] = -1;
+    }
 
-	int n_sums = 0;
-	*t_files = *t_code = *t_comm = *t_blank = 0;
+    int n_sums = 0;
+    *t_files = *t_code = *t_comm = *t_blank = 0;
 
-	for (int i = 0; i < params.num_files; i++) {
-		int li = (files_v + i)->lang_idx;
-		int map_idx = li + 1; /* -1 → 0, 0 → 1, … */
-		if (map_idx < 0 || map_idx >= map_size) {
-			continue;
-		}
+    for (int i = 0; i < params.num_files; i++) {
+        int li = (files_v + i)->lang_idx;
+        int map_idx = li + 1; /* -1 → 0, 0 → 1, … */
+        if (map_idx < 0 || map_idx >= map_size) {
+            continue;
+        }
 
-		int found = lang_to_sum[map_idx];
-		if (found == -1) {
-			if (n_sums >= params.max_sums) {
-				continue;
-			}
-			found = n_sums++;
-			out_sums[found].lang_idx = li;
-			out_sums[found].files = 0;
-			out_sums[found].counts.code = 0;
-			out_sums[found].counts.comment = 0;
-			out_sums[found].counts.blank = 0;
-			lang_to_sum[map_idx] = found;
-		}
-		out_sums[found].files++;
-		out_sums[found].counts.code += (files_v + i)->counts.code;
-		out_sums[found].counts.comment += (files_v + i)->counts.comment;
-		out_sums[found].counts.blank += (files_v + i)->counts.blank;
-	}
+        int found = lang_to_sum[map_idx];
+        if (found == -1) {
+            if (n_sums >= params.max_sums) {
+                continue;
+            }
+            found = n_sums++;
+            out_sums[found].lang_idx = li;
+            out_sums[found].files = 0;
+            out_sums[found].counts.code = 0;
+            out_sums[found].counts.comment = 0;
+            out_sums[found].counts.blank = 0;
+            lang_to_sum[map_idx] = found;
+        }
+        out_sums[found].files++;
+        out_sums[found].counts.code += (files_v + i)->counts.code;
+        out_sums[found].counts.comment += (files_v + i)->counts.comment;
+        out_sums[found].counts.blank += (files_v + i)->counts.blank;
+    }
 
-	g_sort_order = params.sort_order;
-	qsort(out_sums, (size_t) n_sums, sizeof(LocLangSum), loc__sum_cmp);
+    g_sort_order = params.sort_order;
+    qsort(out_sums, (size_t) n_sums, sizeof(LocLangSum), loc__sum_cmp);
 
-	for (int i = 0; i < n_sums; i++) {
-		*t_files += out_sums[i].files;
-		*t_code += out_sums[i].counts.code;
-		*t_comm += out_sums[i].counts.comment;
-		*t_blank += out_sums[i].counts.blank;
-	}
-	return n_sums;
+    for (int i = 0; i < n_sums; i++) {
+        *t_files += out_sums[i].files;
+        *t_code += out_sums[i].counts.code;
+        *t_comm += out_sums[i].counts.comment;
+        *t_blank += out_sums[i].counts.blank;
+    }
+    return n_sums;
 }
 
 /*
@@ -337,92 +337,92 @@ static void loc_print_json(const FileResult* files_v, int n_files,
  const Language* langs_v, int n_langs, bool show_files, LocSortOrder sort_order)
 {
 #define MAX_SUMS_JSON 1024
-	LocLangSum sums[MAX_SUMS_JSON];
-	long t_files = 0, t_code = 0, t_comm = 0, t_blank = 0;
+    LocLangSum sums[MAX_SUMS_JSON];
+    long t_files = 0, t_code = 0, t_comm = 0, t_blank = 0;
 
-	int n_sums = loc__build_sums(files_v,
-	 (LocSumParams) {n_files, n_langs, MAX_SUMS_JSON, sort_order}, sums,
-	 &t_files, &t_code, &t_comm, &t_blank);
-	long grand_total = t_code + t_comm + t_blank;
+    int n_sums = loc__build_sums(files_v,
+     (LocSumParams) {n_files, n_langs, MAX_SUMS_JSON, sort_order}, sums,
+     &t_files, &t_code, &t_comm, &t_blank);
+    long grand_total = t_code + t_comm + t_blank;
 
-	char esc[1024];
+    char esc[1024];
 
-	printf("{\n");
+    printf("{\n");
 
-	/* ── languages array ── */
-	printf("  \"languages\": [\n");
-	for (int i = 0; i < n_sums; i++) {
-		const char* name = (sums[i].lang_idx == -1) ?
-		 "(unknown)" :
-		 (langs_v + sums[i].lang_idx)->name;
-		loc__json_escape(name, esc, sizeof(esc));
-		long total =
-		 sums[i].counts.code + sums[i].counts.comment + sums[i].counts.blank;
-		double pct = (grand_total > 0) ?
-		 100.0 * (double) total / (double) grand_total :
-		 0.0;
-		printf(
-		 "    {\n"
-		 "      \"language\": \"%s\",\n"
-		 "      \"files\": %d,\n"
-		 "      \"code\": %" PRIu32 ",\n"
-		 "      \"comment\": %" PRIu32 ",\n"
-		 "      \"blank\": %" PRIu32 ",\n"
-		 "      \"total\": %ld,\n"
-		 "      \"pct\": %.2f\n"
-		 "    }%s\n",
-		 esc, sums[i].files, sums[i].counts.code, sums[i].counts.comment,
-		 sums[i].counts.blank, total, pct, (i < n_sums - 1) ? "," : "");
-	}
-	printf("  ],\n");
+    /* ── languages array ── */
+    printf("  \"languages\": [\n");
+    for (int i = 0; i < n_sums; i++) {
+        const char* name = (sums[i].lang_idx == -1) ?
+         "(unknown)" :
+         (langs_v + sums[i].lang_idx)->name;
+        loc__json_escape(name, esc, sizeof(esc));
+        long total =
+         sums[i].counts.code + sums[i].counts.comment + sums[i].counts.blank;
+        double pct = (grand_total > 0) ?
+         100.0 * (double) total / (double) grand_total :
+         0.0;
+        printf(
+         "    {\n"
+         "      \"language\": \"%s\",\n"
+         "      \"files\": %d,\n"
+         "      \"code\": %" PRIu32 ",\n"
+         "      \"comment\": %" PRIu32 ",\n"
+         "      \"blank\": %" PRIu32 ",\n"
+         "      \"total\": %ld,\n"
+         "      \"pct\": %.2f\n"
+         "    }%s\n",
+         esc, sums[i].files, sums[i].counts.code, sums[i].counts.comment,
+         sums[i].counts.blank, total, pct, (i < n_sums - 1) ? "," : "");
+    }
+    printf("  ],\n");
 
-	/* ── totals ── */
-	printf(
-	 "  \"totals\": {\n"
-	 "    \"files\": %ld,\n"
-	 "    \"code\": %ld,\n"
-	 "    \"comment\": %ld,\n"
-	 "    \"blank\": %ld,\n"
-	 "    \"total\": %ld\n"
-	 "  }",
-	 t_files, t_code, t_comm, t_blank, grand_total);
+    /* ── totals ── */
+    printf(
+     "  \"totals\": {\n"
+     "    \"files\": %ld,\n"
+     "    \"code\": %ld,\n"
+     "    \"comment\": %ld,\n"
+     "    \"blank\": %ld,\n"
+     "    \"total\": %ld\n"
+     "  }",
+     t_files, t_code, t_comm, t_blank, grand_total);
 
-	/* ── per-file results (optional) ── */
-	if (show_files && n_files > 0) {
-		printf(",\n  \"files\": [\n");
-		for (int i = 0; i < n_files; i++) {
-			const char* path = (files_v + i)->path;
-			const char* ext = (files_v + i)->ext;
-			int li = (files_v + i)->lang_idx;
-			const char* lang_name =
-			 (li >= 0 && li < n_langs) ? (langs_v + li)->name : "(unknown)";
+    /* ── per-file results (optional) ── */
+    if (show_files && n_files > 0) {
+        printf(",\n  \"files\": [\n");
+        for (int i = 0; i < n_files; i++) {
+            const char* path = (files_v + i)->path;
+            const char* ext = (files_v + i)->ext;
+            int li = (files_v + i)->lang_idx;
+            const char* lang_name =
+             (li >= 0 && li < n_langs) ? (langs_v + li)->name : "(unknown)";
 
-			char esc_path[4096], esc_lang[128];
-			loc__json_escape(path ? path : "", esc_path, sizeof(esc_path));
-			loc__json_escape(lang_name, esc_lang, sizeof(esc_lang));
+            char esc_path[4096], esc_lang[128];
+            loc__json_escape(path ? path : "", esc_path, sizeof(esc_path));
+            loc__json_escape(lang_name, esc_lang, sizeof(esc_lang));
 
-			uint32_t code = (files_v + i)->counts.code;
-			uint32_t comment = (files_v + i)->counts.comment;
-			uint32_t blank = (files_v + i)->counts.blank;
-			uint32_t total = code + comment + blank;
+            uint32_t code = (files_v + i)->counts.code;
+            uint32_t comment = (files_v + i)->counts.comment;
+            uint32_t blank = (files_v + i)->counts.blank;
+            uint32_t total = code + comment + blank;
 
-			printf(
-			 "    {\n"
-			 "      \"path\": \"%s\",\n"
-			 "      \"ext\": \"%s\",\n"
-			 "      \"language\": \"%s\",\n"
-			 "      \"code\": %" PRIu32 ",\n"
-			 "      \"comment\": %" PRIu32 ",\n"
-			 "      \"blank\": %" PRIu32 ",\n"
-			 "      \"total\": %" PRIu32 "\n"
-			 "    }%s\n",
-			 esc_path, ext ? ext : "", esc_lang, code, comment, blank, total,
-			 (i < n_files - 1) ? "," : "");
-		}
-		printf("  ]");
-	}
+            printf(
+             "    {\n"
+             "      \"path\": \"%s\",\n"
+             "      \"ext\": \"%s\",\n"
+             "      \"language\": \"%s\",\n"
+             "      \"code\": %" PRIu32 ",\n"
+             "      \"comment\": %" PRIu32 ",\n"
+             "      \"blank\": %" PRIu32 ",\n"
+             "      \"total\": %" PRIu32 "\n"
+             "    }%s\n",
+             esc_path, ext ? ext : "", esc_lang, code, comment, blank, total,
+             (i < n_files - 1) ? "," : "");
+        }
+        printf("  ]");
+    }
 
-	printf("\n}\n");
+    printf("\n}\n");
 #undef MAX_SUMS_JSON
 }
 
@@ -434,131 +434,131 @@ static void loc_print_html(const FileResult* files_v, int n_files,
  const Language* langs_v, int n_langs, bool show_files, bool verbose,
  LocSortOrder sort_order)
 {
-	(void) verbose;
+    (void) verbose;
 
 #define MAX_SUMS_HTML 1024
 
-	LocLangSum* sums = (LocLangSum*) calloc(MAX_SUMS_HTML, sizeof(LocLangSum));
+    LocLangSum* sums = (LocLangSum*) calloc(MAX_SUMS_HTML, sizeof(LocLangSum));
 
-	if (!sums) {
-		return;
-	}
+    if (!sums) {
+        return;
+    }
 
-	long t_files = 0;
-	long t_code = 0;
-	long t_comment = 0;
-	long t_blank = 0;
+    long t_files = 0;
+    long t_code = 0;
+    long t_comment = 0;
+    long t_blank = 0;
 
-	int n_sums = loc__build_sums(files_v,
-	 (LocSumParams) {n_files, n_langs, MAX_SUMS_HTML, sort_order}, sums,
-	 &t_files, &t_code, &t_comment, &t_blank);
+    int n_sums = loc__build_sums(files_v,
+     (LocSumParams) {n_files, n_langs, MAX_SUMS_HTML, sort_order}, sums,
+     &t_files, &t_code, &t_comment, &t_blank);
 
-	long grand_total = t_code + t_comment + t_blank;
+    long grand_total = t_code + t_comment + t_blank;
 
-	char esc[4096];
+    char esc[4096];
 
-	printf("%s", LOC_HTML_HEADER);
+    printf("%s", LOC_HTML_HEADER);
 
-	printf(
-	 "<table>\n"
-	 "<thead>\n"
-	 "<tr>\n"
-	 "<th>Language</th>\n"
-	 "<th>Files</th>\n"
-	 "<th>Code</th>\n"
-	 "<th>Comment</th>\n"
-	 "<th>Blank</th>\n"
-	 "<th>Total</th>\n"
-	 "<th>%%</th>\n"
-	 "</tr>\n"
-	 "</thead>\n"
-	 "<tbody>\n");
+    printf(
+     "<table>\n"
+     "<thead>\n"
+     "<tr>\n"
+     "<th>Language</th>\n"
+     "<th>Files</th>\n"
+     "<th>Code</th>\n"
+     "<th>Comment</th>\n"
+     "<th>Blank</th>\n"
+     "<th>Total</th>\n"
+     "<th>%%</th>\n"
+     "</tr>\n"
+     "</thead>\n"
+     "<tbody>\n");
 
-	for (int i = 0; i < n_sums; i++) {
-		const char* name = (sums[i].lang_idx == -1) ?
-		 "(unknown)" :
-		 (langs_v + sums[i].lang_idx)->name;
+    for (int i = 0; i < n_sums; i++) {
+        const char* name = (sums[i].lang_idx == -1) ?
+         "(unknown)" :
+         (langs_v + sums[i].lang_idx)->name;
 
-		loc__html_escape(name, esc, sizeof(esc));
+        loc__html_escape(name, esc, sizeof(esc));
 
-		long total =
-		 sums[i].counts.code + sums[i].counts.comment + sums[i].counts.blank;
+        long total =
+         sums[i].counts.code + sums[i].counts.comment + sums[i].counts.blank;
 
-		double pct = (grand_total > 0) ?
-		 (100.0 * (double) total / (double) grand_total) :
-		 0.0;
+        double pct = (grand_total > 0) ?
+         (100.0 * (double) total / (double) grand_total) :
+         0.0;
 
-		printf(
-		 "<tr>"
-		 "<td>%s</td>"
-		 "<td>%d</td>"
-		 "<td>%" PRIu32 "</td>"
-		 "<td>%" PRIu32 "</td>"
-		 "<td>%" PRIu32 "</td>"
-		 "<td>%ld</td>"
-		 "<td>%.1f</td>"
-		 "</tr>\n",
-		 esc, sums[i].files, sums[i].counts.code, sums[i].counts.comment,
-		 sums[i].counts.blank, total, pct);
-	}
+        printf(
+         "<tr>"
+         "<td>%s</td>"
+         "<td>%d</td>"
+         "<td>%" PRIu32 "</td>"
+         "<td>%" PRIu32 "</td>"
+         "<td>%" PRIu32 "</td>"
+         "<td>%ld</td>"
+         "<td>%.1f</td>"
+         "</tr>\n",
+         esc, sums[i].files, sums[i].counts.code, sums[i].counts.comment,
+         sums[i].counts.blank, total, pct);
+    }
 
-	printf(
-	 "<tr>"
-	 "<td><b>TOTAL</b></td>"
-	 "<td><b>%ld</b></td>"
-	 "<td><b>%ld</b></td>"
-	 "<td><b>%ld</b></td>"
-	 "<td><b>%ld</b></td>"
-	 "<td><b>%ld</b></td>"
-	 "<td><b>100.0</b></td>"
-	 "</tr>\n",
-	 t_files, t_code, t_comment, t_blank, grand_total);
+    printf(
+     "<tr>"
+     "<td><b>TOTAL</b></td>"
+     "<td><b>%ld</b></td>"
+     "<td><b>%ld</b></td>"
+     "<td><b>%ld</b></td>"
+     "<td><b>%ld</b></td>"
+     "<td><b>%ld</b></td>"
+     "<td><b>100.0</b></td>"
+     "</tr>\n",
+     t_files, t_code, t_comment, t_blank, grand_total);
 
-	printf("</tbody>\n</table>\n");
+    printf("</tbody>\n</table>\n");
 
-	if (show_files && n_files > 0) {
-		printf(
-		 "<br>\n"
-		 "<table>\n"
-		 "<thead>\n"
-		 "<tr>\n"
-		 "<th>Path</th>\n"
-		 "<th>Code</th>\n"
-		 "<th>Comment</th>\n"
-		 "<th>Blank</th>\n"
-		 "<th>Total</th>\n"
-		 "</tr>\n"
-		 "</thead>\n"
-		 "<tbody>\n");
+    if (show_files && n_files > 0) {
+        printf(
+         "<br>\n"
+         "<table>\n"
+         "<thead>\n"
+         "<tr>\n"
+         "<th>Path</th>\n"
+         "<th>Code</th>\n"
+         "<th>Comment</th>\n"
+         "<th>Blank</th>\n"
+         "<th>Total</th>\n"
+         "</tr>\n"
+         "</thead>\n"
+         "<tbody>\n");
 
-		for (int i = 0; i < n_files; i++) {
-			const char* path = (files_v + i)->path;
+        for (int i = 0; i < n_files; i++) {
+            const char* path = (files_v + i)->path;
 
-			uint32_t code = (files_v + i)->counts.code;
-			uint32_t comment = (files_v + i)->counts.comment;
-			uint32_t blank = (files_v + i)->counts.blank;
+            uint32_t code = (files_v + i)->counts.code;
+            uint32_t comment = (files_v + i)->counts.comment;
+            uint32_t blank = (files_v + i)->counts.blank;
 
-			uint32_t total = code + comment + blank;
+            uint32_t total = code + comment + blank;
 
-			loc__html_escape(path ? path : "", esc, sizeof(esc));
+            loc__html_escape(path ? path : "", esc, sizeof(esc));
 
-			printf(
-			 "<tr>"
-			 "<td>%s</td>"
-			 "<td>%" PRIu32 "</td>"
-			 "<td>%" PRIu32 "</td>"
-			 "<td>%" PRIu32 "</td>"
-			 "<td>%" PRIu32 "</td>"
-			 "</tr>\n",
-			 esc, code, comment, blank, total);
-		}
+            printf(
+             "<tr>"
+             "<td>%s</td>"
+             "<td>%" PRIu32 "</td>"
+             "<td>%" PRIu32 "</td>"
+             "<td>%" PRIu32 "</td>"
+             "<td>%" PRIu32 "</td>"
+             "</tr>\n",
+             esc, code, comment, blank, total);
+        }
 
-		printf("</tbody>\n</table>\n");
-	}
+        printf("</tbody>\n</table>\n");
+    }
 
-	printf("%s", LOC_HTML_FOOTER);
+    printf("%s", LOC_HTML_FOOTER);
 
-	free(sums);
+    free(sums);
 
 #undef MAX_SUMS_HTML
 }
@@ -571,104 +571,104 @@ static void loc_print_sql(const FileResult* files_v, int n_files,
  const Language* langs_v, int n_langs, bool show_files, LocSortOrder sort_order)
 {
 #define MAX_SUMS_SQL 1024
-	LocLangSum sums[MAX_SUMS_SQL];
-	long t_files = 0, t_code = 0, t_comm = 0, t_blank = 0;
+    LocLangSum sums[MAX_SUMS_SQL];
+    long t_files = 0, t_code = 0, t_comm = 0, t_blank = 0;
 
-	int n_sums = loc__build_sums(files_v,
-	 (LocSumParams) {n_files, n_langs, MAX_SUMS_SQL, sort_order}, sums,
-	 &t_files, &t_code, &t_comm, &t_blank);
+    int n_sums = loc__build_sums(files_v,
+     (LocSumParams) {n_files, n_langs, MAX_SUMS_SQL, sort_order}, sums,
+     &t_files, &t_code, &t_comm, &t_blank);
 
-	long grand_total = t_code + t_comm + t_blank;
+    long grand_total = t_code + t_comm + t_blank;
 
-	char ts[32];
-	loc__iso8601_now(ts, sizeof(ts));
+    char ts[32];
+    loc__iso8601_now(ts, sizeof(ts));
 
-	char esc[4096];
+    char esc[4096];
 
-	/* ── DDL ── */
-	printf("-- mini-loc SQL export — run at %s\n\n", ts);
+    /* ── DDL ── */
+    printf("-- mini-loc SQL export — run at %s\n\n", ts);
 
-	printf(
-	 "CREATE TABLE IF NOT EXISTS loc_languages (\n"
-	 "    run_id   TEXT    NOT NULL,\n"
-	 "    language TEXT    NOT NULL,\n"
-	 "    files    INTEGER NOT NULL,\n"
-	 "    code     INTEGER NOT NULL,\n"
-	 "    comment  INTEGER NOT NULL,\n"
-	 "    blank    INTEGER NOT NULL,\n"
-	 "    total    INTEGER NOT NULL,\n"
-	 "    pct      REAL    NOT NULL,\n"
-	 "    PRIMARY KEY (run_id, language)\n"
-	 ");\n\n");
+    printf(
+     "CREATE TABLE IF NOT EXISTS loc_languages (\n"
+     "    run_id   TEXT    NOT NULL,\n"
+     "    language TEXT    NOT NULL,\n"
+     "    files    INTEGER NOT NULL,\n"
+     "    code     INTEGER NOT NULL,\n"
+     "    comment  INTEGER NOT NULL,\n"
+     "    blank    INTEGER NOT NULL,\n"
+     "    total    INTEGER NOT NULL,\n"
+     "    pct      REAL    NOT NULL,\n"
+     "    PRIMARY KEY (run_id, language)\n"
+     ");\n\n");
 
-	if (show_files) {
-		printf(
-		 "CREATE TABLE IF NOT EXISTS loc_files (\n"
-		 "    run_id   TEXT    NOT NULL,\n"
-		 "    path     TEXT    NOT NULL,\n"
-		 "    ext      TEXT,\n"
-		 "    language TEXT,\n"
-		 "    code     INTEGER NOT NULL,\n"
-		 "    comment  INTEGER NOT NULL,\n"
-		 "    blank    INTEGER NOT NULL,\n"
-		 "    total    INTEGER NOT NULL,\n"
-		 "    PRIMARY KEY (run_id, path)\n"
-		 ");\n\n");
-	}
+    if (show_files) {
+        printf(
+         "CREATE TABLE IF NOT EXISTS loc_files (\n"
+         "    run_id   TEXT    NOT NULL,\n"
+         "    path     TEXT    NOT NULL,\n"
+         "    ext      TEXT,\n"
+         "    language TEXT,\n"
+         "    code     INTEGER NOT NULL,\n"
+         "    comment  INTEGER NOT NULL,\n"
+         "    blank    INTEGER NOT NULL,\n"
+         "    total    INTEGER NOT NULL,\n"
+         "    PRIMARY KEY (run_id, path)\n"
+         ");\n\n");
+    }
 
-	/* ── Language rows ── */
-	printf("-- Language summary\n");
-	for (int i = 0; i < n_sums; i++) {
-		const char* name = (sums[i].lang_idx == -1) ?
-		 "(unknown)" :
-		 (langs_v + sums[i].lang_idx)->name;
-		loc__sql_escape(name, esc, sizeof(esc));
-		long total =
-		 sums[i].counts.code + sums[i].counts.comment + sums[i].counts.blank;
-		double pct = (grand_total > 0) ?
-		 100.0 * (double) total / (double) grand_total :
-		 0.0;
+    /* ── Language rows ── */
+    printf("-- Language summary\n");
+    for (int i = 0; i < n_sums; i++) {
+        const char* name = (sums[i].lang_idx == -1) ?
+         "(unknown)" :
+         (langs_v + sums[i].lang_idx)->name;
+        loc__sql_escape(name, esc, sizeof(esc));
+        long total =
+         sums[i].counts.code + sums[i].counts.comment + sums[i].counts.blank;
+        double pct = (grand_total > 0) ?
+         100.0 * (double) total / (double) grand_total :
+         0.0;
 
-		printf(
-		 "INSERT INTO loc_languages"
-		 " (run_id, language, files, code, comment, blank, total, pct)"
-		 " VALUES ('%s', '%s', %d, %" PRIu32 ", %" PRIu32 ", %" PRIu32 ", %ld, "
-		 "%.4f);"
-		 "\n",
-		 ts, esc, sums[i].files, sums[i].counts.code, sums[i].counts.comment,
-		 sums[i].counts.blank, total, pct);
-	}
-	printf("\n");
+        printf(
+         "INSERT INTO loc_languages"
+         " (run_id, language, files, code, comment, blank, total, pct)"
+         " VALUES ('%s', '%s', %d, %" PRIu32 ", %" PRIu32 ", %" PRIu32 ", %ld, "
+         "%.4f);"
+         "\n",
+         ts, esc, sums[i].files, sums[i].counts.code, sums[i].counts.comment,
+         sums[i].counts.blank, total, pct);
+    }
+    printf("\n");
 
-	/* ── Per-file rows (optional) ── */
-	if (show_files && n_files > 0) {
-		printf("-- Per-file results\n");
-		for (int i = 0; i < n_files; i++) {
-			const char* path = (files_v + i)->path;
-			const char* ext = (files_v + i)->ext;
-			int li = (files_v + i)->lang_idx;
-			const char* lang_name =
-			 (li >= 0 && li < n_langs) ? (langs_v + li)->name : "(unknown)";
+    /* ── Per-file rows (optional) ── */
+    if (show_files && n_files > 0) {
+        printf("-- Per-file results\n");
+        for (int i = 0; i < n_files; i++) {
+            const char* path = (files_v + i)->path;
+            const char* ext = (files_v + i)->ext;
+            int li = (files_v + i)->lang_idx;
+            const char* lang_name =
+             (li >= 0 && li < n_langs) ? (langs_v + li)->name : "(unknown)";
 
-			char esc_path[4096], esc_ext[64], esc_lang[128];
-			loc__sql_escape(path ? path : "", esc_path, sizeof(esc_path));
-			loc__sql_escape(ext ? ext : "", esc_ext, sizeof(esc_ext));
-			loc__sql_escape(lang_name, esc_lang, sizeof(esc_lang));
+            char esc_path[4096], esc_ext[64], esc_lang[128];
+            loc__sql_escape(path ? path : "", esc_path, sizeof(esc_path));
+            loc__sql_escape(ext ? ext : "", esc_ext, sizeof(esc_ext));
+            loc__sql_escape(lang_name, esc_lang, sizeof(esc_lang));
 
-			uint32_t code = (files_v + i)->counts.code;
-			uint32_t comment = (files_v + i)->counts.comment;
-			uint32_t blank = (files_v + i)->counts.blank;
-			uint32_t total = code + comment + blank;
+            uint32_t code = (files_v + i)->counts.code;
+            uint32_t comment = (files_v + i)->counts.comment;
+            uint32_t blank = (files_v + i)->counts.blank;
+            uint32_t total = code + comment + blank;
 
-			printf(
-			 "INSERT INTO loc_files"
-			 " (run_id, path, ext, language, code, comment, blank, total)"
-			 " VALUES ('%s', '%s', '%s', '%s', %" PRIu32 ", %" PRIu32
-			 ", %" PRIu32 ", %" PRIu32 ");\n",
-			 ts, esc_path, esc_ext, esc_lang, code, comment, blank, total);
-		}
-		printf("\n");
-	}
+            printf(
+             "INSERT INTO loc_files"
+             " (run_id, path, ext, language, code, comment, blank, total)"
+             " VALUES ('%s', '%s', '%s', '%s', %" PRIu32 ", %" PRIu32
+             ", %" PRIu32 ", %" PRIu32 ");\n",
+             ts, esc_path, esc_ext, esc_lang, code, comment, blank, total);
+        }
+        printf("\n");
+    }
 #undef MAX_SUMS_SQL
 }
 
@@ -683,113 +683,113 @@ static inline void loc_print_terminal(FileResult* files_v, int n_files,
 {
 #define MAX_SUMS_TERM 1024
 
-	if (n_files == 0) {
-		printf("mini-loc: no files processed.\n");
-		return;
-	}
+    if (n_files == 0) {
+        printf("mini-loc: no files processed.\n");
+        return;
+    }
 
-	LocLangSum* sums = (LocLangSum*) calloc(MAX_SUMS_TERM, sizeof(LocLangSum));
+    LocLangSum* sums = (LocLangSum*) calloc(MAX_SUMS_TERM, sizeof(LocLangSum));
 
-	if (!sums) {
-		return;
-	}
+    if (!sums) {
+        return;
+    }
 
-	long t_files = 0;
-	long t_code = 0;
-	long t_comment = 0;
-	long t_blank = 0;
+    long t_files = 0;
+    long t_code = 0;
+    long t_comment = 0;
+    long t_blank = 0;
 
-	int n_sums = loc__build_sums(files_v,
-	 (LocSumParams) {n_files, n_langs, MAX_SUMS_TERM, sort_order}, sums,
-	 &t_files, &t_code, &t_comment, &t_blank);
+    int n_sums = loc__build_sums(files_v,
+     (LocSumParams) {n_files, n_langs, MAX_SUMS_TERM, sort_order}, sums,
+     &t_files, &t_code, &t_comment, &t_blank);
 
-	long grand_total = t_code + t_comment + t_blank;
+    long grand_total = t_code + t_comment + t_blank;
 
-	if (show_files) {
-		g_sort_order = sort_order;
-		qsort(files_v, (size_t) n_files, sizeof(FileResult), loc__file_cmp);
+    if (show_files) {
+        g_sort_order = sort_order;
+        qsort(files_v, (size_t) n_files, sizeof(FileResult), loc__file_cmp);
 
-		printf("\n%sPer-File Results%s\n\n", LOC_TERM_CYAN, LOC_TERM_RESET);
+        printf("\n%sPer-File Results%s\n\n", LOC_TERM_CYAN, LOC_TERM_RESET);
 
-		if (verbose) {
-			printf("%-45s %-10s %9s %9s %9s %9s\n", "File", "Ext", "Code",
-			 "Comment", "Blank", "Total");
-		} else {
-			printf("%-55s %9s %9s %9s %9s\n", "File", "Code", "Comment",
-			 "Blank", "Total");
-		}
+        if (verbose) {
+            printf("%-45s %-10s %9s %9s %9s %9s\n", "File", "Ext", "Code",
+             "Comment", "Blank", "Total");
+        } else {
+            printf("%-55s %9s %9s %9s %9s\n", "File", "Code", "Comment",
+             "Blank", "Total");
+        }
 
-		for (int i = 0; i < n_files; i++) {
-			long code = (files_v + i)->counts.code;
-			long comment = (files_v + i)->counts.comment;
-			long blank = (files_v + i)->counts.blank;
+        for (int i = 0; i < n_files; i++) {
+            long code = (files_v + i)->counts.code;
+            long comment = (files_v + i)->counts.comment;
+            long blank = (files_v + i)->counts.blank;
 
-			long total = code + comment + blank;
+            long total = code + comment + blank;
 
-			if (verbose) {
-				printf("%-45s %-10s %9ld %9ld %9ld %9ld\n", (files_v + i)->path,
-				 (files_v + i)->ext ? (files_v + i)->ext : "", code, comment,
-				 blank, total);
-			} else {
-				printf("%-55s %9ld %9ld %9ld %9ld\n", (files_v + i)->path, code,
-				 comment, blank, total);
-			}
-		}
+            if (verbose) {
+                printf("%-45s %-10s %9ld %9ld %9ld %9ld\n", (files_v + i)->path,
+                 (files_v + i)->ext ? (files_v + i)->ext : "", code, comment,
+                 blank, total);
+            } else {
+                printf("%-55s %9ld %9ld %9ld %9ld\n", (files_v + i)->path, code,
+                 comment, blank, total);
+            }
+        }
 
-		printf("\n");
-	}
+        printf("\n");
+    }
 
-	printf("\n%sLanguage Summary%s\n\n", LOC_TERM_CYAN, LOC_TERM_RESET);
+    printf("\n%sLanguage Summary%s\n\n", LOC_TERM_CYAN, LOC_TERM_RESET);
 
-	printf("%-30s %7s %10s %7s %10s %10s %10s\n", "Language", "Files", "Code",
-	 "Pct", "Comment", "Blank", "Total");
-	printf("-------------------------------------------------------------------"
-	       "-----------------------\n");
+    printf("%-30s %7s %10s %7s %10s %10s %10s\n", "Language", "Files", "Code",
+     "Pct", "Comment", "Blank", "Total");
+    printf("-------------------------------------------------------------------"
+           "-----------------------\n");
 
-	for (int i = 0; i < n_sums; i++) {
-		long total =
-		 sums[i].counts.code + sums[i].counts.comment + sums[i].counts.blank;
+    for (int i = 0; i < n_sums; i++) {
+        long total =
+         sums[i].counts.code + sums[i].counts.comment + sums[i].counts.blank;
 
-		double pct = (grand_total > 0) ?
-		 (100.0 * (double) total / (double) grand_total) :
-		 0.0;
+        double pct = (grand_total > 0) ?
+         (100.0 * (double) total / (double) grand_total) :
+         0.0;
 
-		const char* name =
-		 (sums[i].lang_idx >= 0 && sums[i].lang_idx < n_langs) ?
-		 (langs_v + sums[i].lang_idx)->name :
-		 "(unknown)";
+        const char* name =
+         (sums[i].lang_idx >= 0 && sums[i].lang_idx < n_langs) ?
+         (langs_v + sums[i].lang_idx)->name :
+         "(unknown)";
 
-		printf(
-		 "%-30s %7d "
-		 "%s%10" PRIu32 "%s "
-		 "%6.1f%% "
-		 "%s%10" PRIu32 "%s "
-		 "%s%10" PRIu32 "%s "
-		 "%10ld\n",
-		 name, sums[i].files, LOC_TERM_GREEN, sums[i].counts.code,
-		 LOC_TERM_RESET, pct, LOC_TERM_YELLOW, sums[i].counts.comment,
-		 LOC_TERM_RESET, LOC_TERM_GRAY, sums[i].counts.blank, LOC_TERM_RESET,
-		 total);
-	}
-	printf("-------------------------------------------------------------------"
-	       "-----------------------\n");
-	printf("%-30s %7ld %10ld %6.1f%% %10ld %10ld %10ld\n\n", "TOTAL", t_files,
-	 t_code, 100.0, t_comment, t_blank, grand_total);
+        printf(
+         "%-30s %7d "
+         "%s%10" PRIu32 "%s "
+         "%6.1f%% "
+         "%s%10" PRIu32 "%s "
+         "%s%10" PRIu32 "%s "
+         "%10ld\n",
+         name, sums[i].files, LOC_TERM_GREEN, sums[i].counts.code,
+         LOC_TERM_RESET, pct, LOC_TERM_YELLOW, sums[i].counts.comment,
+         LOC_TERM_RESET, LOC_TERM_GRAY, sums[i].counts.blank, LOC_TERM_RESET,
+         total);
+    }
+    printf("-------------------------------------------------------------------"
+           "-----------------------\n");
+    printf("%-30s %7ld %10ld %6.1f%% %10ld %10ld %10ld\n\n", "TOTAL", t_files,
+     t_code, 100.0, t_comment, t_blank, grand_total);
 
-	printf(
-	 "%-1s"
-	 "%s Code %3.1f%% %s|"
-	 "%s Comment %3.1f%% %s|"
-	 "%s Blank %3.1f%%%s\n",
-	 "Breakdown:", LOC_TERM_GREEN,
-	 (double) (100.0 * (double) t_code / (double) grand_total), LOC_TERM_RESET,
-	 LOC_TERM_YELLOW,
-	 (double) (100.0 * (double) t_comment / (double) grand_total),
-	 LOC_TERM_RESET, LOC_TERM_GRAY,
-	 (double) (100.0 * (double) t_blank / (double) grand_total),
-	 LOC_TERM_RESET);
+    printf(
+     "%-1s"
+     "%s Code %3.1f%% %s|"
+     "%s Comment %3.1f%% %s|"
+     "%s Blank %3.1f%%%s\n",
+     "Breakdown:", LOC_TERM_GREEN,
+     (double) (100.0 * (double) t_code / (double) grand_total), LOC_TERM_RESET,
+     LOC_TERM_YELLOW,
+     (double) (100.0 * (double) t_comment / (double) grand_total),
+     LOC_TERM_RESET, LOC_TERM_GRAY,
+     (double) (100.0 * (double) t_blank / (double) grand_total),
+     LOC_TERM_RESET);
 
-	free(sums);
+    free(sums);
 
 #undef MAX_SUMS_TERM
 }
@@ -803,25 +803,25 @@ static void loc_print_report(LocOutputFormat fmt, FileResult* files,
  int n_files, const Language* langs, int n_langs, bool show_files, bool verbose,
  LocSortOrder sort_order)
 {
-	switch (fmt) {
-	case LOC_FMT_JSON:
-		loc_print_json(files, n_files, langs, n_langs, show_files, sort_order);
-		break;
-	case LOC_FMT_HTML:
-		loc_print_html(files, n_files, langs, n_langs, show_files, verbose,
-		 sort_order);
-		break;
-	case LOC_FMT_SQL:
-		loc_print_sql(files, n_files, langs, n_langs, show_files, sort_order);
-		break;
-	case LOC_FMT_TERMINAL:
-		loc_print_terminal(files, n_files, langs, n_langs, show_files, verbose,
-		 sort_order);
-		break;
+    switch (fmt) {
+    case LOC_FMT_JSON:
+        loc_print_json(files, n_files, langs, n_langs, show_files, sort_order);
+        break;
+    case LOC_FMT_HTML:
+        loc_print_html(files, n_files, langs, n_langs, show_files, verbose,
+         sort_order);
+        break;
+    case LOC_FMT_SQL:
+        loc_print_sql(files, n_files, langs, n_langs, show_files, sort_order);
+        break;
+    case LOC_FMT_TERMINAL:
+        loc_print_terminal(files, n_files, langs, n_langs, show_files, verbose,
+         sort_order);
+        break;
 
-	default:
-		break;
-	}
+    default:
+        break;
+    }
 }
 
 /* ── Cleanup macros ── */

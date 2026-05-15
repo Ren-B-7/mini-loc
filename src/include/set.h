@@ -32,211 +32,211 @@ extern "C" {
 #define SET_KEY_SIZE_TYPE size_t
 #endif
 
-	typedef SET_KEY_SIZE_TYPE key_size_tt;
-	typedef uint64_t (*set_hash_function)(const char* key, key_size_tt len);
+    typedef SET_KEY_SIZE_TYPE key_size_tt;
+    typedef uint64_t (*set_hash_function)(const char* key, key_size_tt len);
 
-	typedef struct {
-		key_size_tt _len;
-		char* _key;
-		uint64_t _hash;
-	} SimpleSetNode, simple_set_node;
+    typedef struct {
+        key_size_tt _len;
+        char* _key;
+        uint64_t _hash;
+    } SimpleSetNode, simple_set_node;
 
-	typedef struct {
-		simple_set_node** nodes;
-		uint64_t number_nodes;
-		uint64_t used_nodes;
-		set_hash_function hash_function;
-	} SimpleSet, simple_set;
+    typedef struct {
+        simple_set_node** nodes;
+        uint64_t number_nodes;
+        uint64_t used_nodes;
+        set_hash_function hash_function;
+    } SimpleSet, simple_set;
 
-	/*  Initialize the set either with default parameters (hash function and
-	   space) or optionally set the set with specifed values
+    /*  Initialize the set either with default parameters (hash function and
+       space) or optionally set the set with specifed values
 
-	    Returns:
-	        SET_MALLOC_ERROR: If an error occured setting up the memory
-	        SET_TRUE: On success
-	*/
-	int set_init_alt(SimpleSet* set, uint64_t num_els, set_hash_function hash);
+        Returns:
+            SET_MALLOC_ERROR: If an error occured setting up the memory
+            SET_TRUE: On success
+    */
+    int set_init_alt(SimpleSet* set, uint64_t num_els, set_hash_function hash);
 
 #define DEFAULT_SET_CAPACITY 1024
 
-	static __inline__ int set_init(SimpleSet* set)
-	{
-		return set_init_alt(set, DEFAULT_SET_CAPACITY, NULL);
-	}
+    static __inline__ int set_init(SimpleSet* set)
+    {
+        return set_init_alt(set, DEFAULT_SET_CAPACITY, NULL);
+    }
 
-	/* Utility function to clear out the set */
-	int set_clear(SimpleSet* set);
+    /* Utility function to clear out the set */
+    int set_clear(SimpleSet* set);
 
-	/* Free all memory that is part of the set */
-	int set_destroy(SimpleSet* set);
+    /* Free all memory that is part of the set */
+    int set_destroy(SimpleSet* set);
 
-	/*  Add element to set
+    /*  Add element to set
 
-	    Returns:
-	        SET_TRUE if added
-	        SET_ALREADY_PRESENT if already present
-	        SET_CIRCULAR_ERROR if set is completely full
-	        SET_MALLOC_ERROR if unable to grow the set
-	    NOTE: SET_CIRCULAR_ERROR should never happen, but is there for
-	   insurance!
-	*/
-	int set_add(SimpleSet* set, const char* key, key_size_tt len);
+        Returns:
+            SET_TRUE if added
+            SET_ALREADY_PRESENT if already present
+            SET_CIRCULAR_ERROR if set is completely full
+            SET_MALLOC_ERROR if unable to grow the set
+        NOTE: SET_CIRCULAR_ERROR should never happen, but is there for
+       insurance!
+    */
+    int set_add(SimpleSet* set, const char* key, key_size_tt len);
 
-	/*  Add string element to set
+    /*  Add string element to set
 
-	    Returns:
-	        SET_TRUE if added
-	        SET_ALREADY_PRESENT if already present
-	        SET_CIRCULAR_ERROR if set is completely full
-	        SET_MALLOC_ERROR if unable to grow the set
-	    NOTE: SET_CIRCULAR_ERROR should never happen, but is there for
-	   insurance!
-	*/
-	int set_add_str(SimpleSet* set, const char* key);
+        Returns:
+            SET_TRUE if added
+            SET_ALREADY_PRESENT if already present
+            SET_CIRCULAR_ERROR if set is completely full
+            SET_MALLOC_ERROR if unable to grow the set
+        NOTE: SET_CIRCULAR_ERROR should never happen, but is there for
+       insurance!
+    */
+    int set_add_str(SimpleSet* set, const char* key);
 
-	/*  Remove element from the set
+    /*  Remove element from the set
 
-	    Returns:
-	        SET_TRUE if removed
-	        SET_FALSE if not present
-	*/
-	int set_remove(SimpleSet* set, const char* key, key_size_tt len);
+        Returns:
+            SET_TRUE if removed
+            SET_FALSE if not present
+    */
+    int set_remove(SimpleSet* set, const char* key, key_size_tt len);
 
-	/*  Remove string element from the set
+    /*  Remove string element from the set
 
-	    Returns:
-	        SET_TRUE if removed
-	        SET_FALSE if not present
-	*/
-	int set_remove_str(SimpleSet* set, const char* key);
+        Returns:
+            SET_TRUE if removed
+            SET_FALSE if not present
+    */
+    int set_remove_str(SimpleSet* set, const char* key);
 
-	/*  Check if key in set
+    /*  Check if key in set
 
-	    Returns:
-	        SET_TRUE if present,
-	        SET_FALSE if not found
-	        SET_CIRCULAR_ERROR if set is full and not found
-	    NOTE: SET_CIRCULAR_ERROR should never happen, but is there for
-	   insurance!
-	*/
-	int set_contains(const SimpleSet* set, const char* key, key_size_tt len);
+        Returns:
+            SET_TRUE if present,
+            SET_FALSE if not found
+            SET_CIRCULAR_ERROR if set is full and not found
+        NOTE: SET_CIRCULAR_ERROR should never happen, but is there for
+       insurance!
+    */
+    int set_contains(const SimpleSet* set, const char* key, key_size_tt len);
 
-	/*  Check if string key in set
+    /*  Check if string key in set
 
-	    Returns:
-	        SET_TRUE if present,
-	        SET_FALSE if not found
-	        SET_CIRCULAR_ERROR if set is full and not found
-	    NOTE: SET_CIRCULAR_ERROR should never happen, but is there for
-	   insurance!
-	*/
-	int set_contains_str(const SimpleSet* set, const char* key);
+        Returns:
+            SET_TRUE if present,
+            SET_FALSE if not found
+            SET_CIRCULAR_ERROR if set is full and not found
+        NOTE: SET_CIRCULAR_ERROR should never happen, but is there for
+       insurance!
+    */
+    int set_contains_str(const SimpleSet* set, const char* key);
 
-	/* Return the number of elements in the set */
-	uint64_t set_length(const SimpleSet* set);
+    /* Return the number of elements in the set */
+    uint64_t set_length(const SimpleSet* set);
 
-	/*  Set res to the union of s1 and s2
-	    res = s1 ∪ s2
+    /*  Set res to the union of s1 and s2
+        res = s1 ∪ s2
 
-	    The union of a set A with a B is the set of elements that are in either
-	    set A or B. The union is denoted as A ∪ B
-	*/
-	int set_union(SimpleSet* res, const SimpleSet* set1, const SimpleSet* set2);
+        The union of a set A with a B is the set of elements that are in either
+        set A or B. The union is denoted as A ∪ B
+    */
+    int set_union(SimpleSet* res, const SimpleSet* set1, const SimpleSet* set2);
 
-	/*  Set res to the intersection of s1 and s2
-	    res = s1 ∩ s2
+    /*  Set res to the intersection of s1 and s2
+        res = s1 ∩ s2
 
-	    The intersection of a set A with a B is the set of elements that are in
-	    both set A and B. The intersection is denoted as A ∩ B
-	*/
-	int set_intersection(SimpleSet* res, const SimpleSet* set1,
-	 const SimpleSet* set2);
+        The intersection of a set A with a B is the set of elements that are in
+        both set A and B. The intersection is denoted as A ∩ B
+    */
+    int set_intersection(SimpleSet* res, const SimpleSet* set1,
+     const SimpleSet* set2);
 
-	/*  Set res to the difference between s1 and s2
-	    res = s1∖ s2
+    /*  Set res to the difference between s1 and s2
+        res = s1∖ s2
 
-	    The set difference between two sets A and B is written A ∖ B, and means
-	    the set that consists of the elements of A which are not elements
-	    of B: x ∈ A ∖ B ⟺ x ∈ A ∧ x ∉ B. Another frequently seen notation
-	    for S ∖ T is S − T.
-	*/
-	int set_difference(SimpleSet* res, const SimpleSet* set1,
-	 const SimpleSet* set2);
+        The set difference between two sets A and B is written A ∖ B, and means
+        the set that consists of the elements of A which are not elements
+        of B: x ∈ A ∖ B ⟺ x ∈ A ∧ x ∉ B. Another frequently seen notation
+        for S ∖ T is S − T.
+    */
+    int set_difference(SimpleSet* res, const SimpleSet* set1,
+     const SimpleSet* set2);
 
-	/*  Set res to the symmetric difference between s1 and s2
-	    res = s1 △ s2
+    /*  Set res to the symmetric difference between s1 and s2
+        res = s1 △ s2
 
-	    The symmetric difference of two sets A and B is the set of elements
-	   either in A or in B but not in both. Symmetric difference is denoted A △
-	   B or A * B
-	*/
-	int set_symmetric_difference(SimpleSet* res, const SimpleSet* set1,
-	 const SimpleSet* set2);
+        The symmetric difference of two sets A and B is the set of elements
+       either in A or in B but not in both. Symmetric difference is denoted A △
+       B or A * B
+    */
+    int set_symmetric_difference(SimpleSet* res, const SimpleSet* set1,
+     const SimpleSet* set2);
 
-	/*  Return SET_TRUE if test is fully contained in s2; returns SET_FALSE
-	    otherwise
-	    test ⊆ against
+    /*  Return SET_TRUE if test is fully contained in s2; returns SET_FALSE
+        otherwise
+        test ⊆ against
 
-	    A set A is a subset of another set B if all elements of the set A are
-	    elements of the set B. In other words, the set A is contained inside
-	    the set B. The subset relationship is denoted as A ⊆ B
-	*/
-	int set_is_subset(const SimpleSet* test, const SimpleSet* against);
+        A set A is a subset of another set B if all elements of the set A are
+        elements of the set B. In other words, the set A is contained inside
+        the set B. The subset relationship is denoted as A ⊆ B
+    */
+    int set_is_subset(const SimpleSet* test, const SimpleSet* against);
 
-	/*  Inverse of subset; return SET_TRUE if set test fully contains
-	    (including equal to) set against; return SET_FALSE otherwise
-	    test ⊇ against
+    /*  Inverse of subset; return SET_TRUE if set test fully contains
+        (including equal to) set against; return SET_FALSE otherwise
+        test ⊇ against
 
-	    Superset Definition: A set A is a superset of another set B if all
-	    elements of the set B are elements of the set A. The superset
-	    relationship is denoted as A ⊇ B
-	*/
-	static __inline__ int
-	set_is_superset(const SimpleSet* test, const SimpleSet* against)
-	{
-		return set_is_subset(test, against);
-	}
+        Superset Definition: A set A is a superset of another set B if all
+        elements of the set B are elements of the set A. The superset
+        relationship is denoted as A ⊇ B
+    */
+    static __inline__ int
+    set_is_superset(const SimpleSet* test, const SimpleSet* against)
+    {
+        return set_is_subset(test, against);
+    }
 
-	/*  Strict subset ensures that the test is a subset of against, but that
-	    the two are also not equal.
-	    test ⊂ against
+    /*  Strict subset ensures that the test is a subset of against, but that
+        the two are also not equal.
+        test ⊂ against
 
-	    Set A is a strict subset of another set B if all elements of the set A
-	    are elements of the set B. In other words, the set A is contained inside
-	    the set B. A ≠ B is required. The strict subset relationship is denoted
-	    as A ⊂ B
-	*/
-	int set_is_subset_strict(const SimpleSet* test, const SimpleSet* against);
+        Set A is a strict subset of another set B if all elements of the set A
+        are elements of the set B. In other words, the set A is contained inside
+        the set B. A ≠ B is required. The strict subset relationship is denoted
+        as A ⊂ B
+    */
+    int set_is_subset_strict(const SimpleSet* test, const SimpleSet* against);
 
-	/*  Strict superset ensures that the test is a superset of against, but that
-	    the two are also not equal.
-	    test ⊃ against
+    /*  Strict superset ensures that the test is a superset of against, but that
+        the two are also not equal.
+        test ⊃ against
 
-	    Strict Superset Definition: A set A is a superset of another set B if
-	    all elements of the set B are elements of the set A. A ≠ B is required.
-	    The superset relationship is denoted as A ⊃ B
-	*/
-	static __inline__ int
-	set_is_superset_strict(const SimpleSet* test, const SimpleSet* against)
-	{
-		return set_is_subset_strict(test, against);
-	}
+        Strict Superset Definition: A set A is a superset of another set B if
+        all elements of the set B are elements of the set A. A ≠ B is required.
+        The superset relationship is denoted as A ⊃ B
+    */
+    static __inline__ int
+    set_is_superset_strict(const SimpleSet* test, const SimpleSet* against)
+    {
+        return set_is_subset_strict(test, against);
+    }
 
-	/*  Return an array of the elements in the set
-	    NOTE: Up to the caller to free the memory */
-	char** set_to_array(const SimpleSet* set, uint64_t* size);
+    /*  Return an array of the elements in the set
+        NOTE: Up to the caller to free the memory */
+    char** set_to_array(const SimpleSet* set, uint64_t* size);
 
-	/*  Compare two sets for equality (size, keys same, etc)
+    /*  Compare two sets for equality (size, keys same, etc)
 
-	    Returns:
-	        SET_RIGHT_GREATER if left is less than right
-	        SET_LEFT_GREATER if right is less than left
-	        SET_EQUAL if left is the same size as right and keys match
-	        SET_UNEQUAL if size is the same but elements are different
-	*/
-	int set_cmp(const SimpleSet* left, const SimpleSet* right);
+        Returns:
+            SET_RIGHT_GREATER if left is less than right
+            SET_LEFT_GREATER if right is less than left
+            SET_EQUAL if left is the same size as right and keys match
+            SET_UNEQUAL if size is the same but elements are different
+    */
+    int set_cmp(const SimpleSet* left, const SimpleSet* right);
 
-	// void set_printf(SimpleSet *set); /* TODO: implement */
+    // void set_printf(SimpleSet *set); /* TODO: implement */
 
 #define SET_TRUE (0)
 #define SET_FALSE (-1)

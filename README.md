@@ -53,7 +53,9 @@ cJson to be installed and used with the `gcc` linker flags.
 
 ### Platforms
 
-To the best of my knowledge this project is not system or platform dependant.
+To the best of my knowledge this project is system agnostic, except for windows
+where it must be made with mingw, to ensure the dirent.h header is provided to
+the fs.c file.
 
 There is code in the `Makefile` to detect when you are on macos to ensure the
 needed `DARWIN` flag is added to gcc.

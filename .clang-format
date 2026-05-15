@@ -25,7 +25,7 @@ IndentWidth: 4
 #   UT_Never (in configuration: Never) Never use tab.
 #   UT_ForIndentation (in configuration: ForIndentation) Use tabs only for indentation.
 #   UT_Always (in configuration: Always) Use tabs whenever we need to fill whitespace that spans at least from one tab stop to the next one.
-UseTab: ForIndentation
+UseTab: Never
 
 # C++
 #####
@@ -378,7 +378,6 @@ PackConstructorInitializers: NextLine
 
 RemoveParentheses: MultipleParentheses
 
-RemoveSemicolon: true
 
 SeparateDefinitionBlocks: Always
 

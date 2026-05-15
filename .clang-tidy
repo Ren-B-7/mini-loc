@@ -1,5 +1,10 @@
 ---
-Checks: '-bugprone-easily-swappable-parameters, -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling'
-HeaderFilterRegex: 'src/.*'
-FormatStyle: file
-User: Renier
+Checks: '-*,bugprone-*,clang-analyzer-*,-clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,-bugprone-easily-swappable-parameters'
+WarningsAsErrors: ''
+HeaderFilterRegex: ''
+FormatStyle: none
+CheckOptions:
+  - key: cppcoreguidelines-pro-type-member-init.UseAssignment
+    value: 'true'
+ExtraArgs: ['-std=c99', '-Isrc', '-Isrc/include', '-I/usr/include/cjson', '-I/usr/local/include', '-I/usr/local/include/cjson', '-I/opt/homebrew/include', '-I/opt/homebrew/include/cjson']
+...

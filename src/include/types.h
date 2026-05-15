@@ -38,91 +38,91 @@
 
 /* 12 Bytes instead of 24 */
 typedef struct {
-	uint32_t code;
-	uint32_t comment;
-	uint32_t blank;
-	uint8_t padding[52];
+    uint32_t code;
+    uint32_t comment;
+    uint32_t blank;
+    uint8_t padding[52];
 } Counts;
 
 /* Reordered the struct to be by cache and with slightly better alignment */
 
 typedef struct {
-	char start[MAX_COMMENT_LEN];
-	char end[MAX_COMMENT_LEN];
+    char start[MAX_COMMENT_LEN];
+    char end[MAX_COMMENT_LEN];
 
-	uint8_t start_len;
-	uint8_t end_len;
+    uint8_t start_len;
+    uint8_t end_len;
 
-	bool nested;
+    bool nested;
 } MultiLineRule;
 
 typedef struct {
-	char start[MAX_COMMENT_LEN];
-	uint8_t len;
+    char start[MAX_COMMENT_LEN];
+    uint8_t len;
 } LineCommentRule;
 
 typedef struct {
-	char start[8];
-	char end[8];
+    char start[8];
+    char end[8];
 
-	uint8_t start_len;
-	uint8_t end_len;
+    uint8_t start_len;
+    uint8_t end_len;
 
-	bool escape;
-	bool multiline;
+    bool escape;
+    bool multiline;
 } QuoteRule;
 
 typedef struct {
-	char token[MAX_COMPLEXITY_LEN];
-	uint8_t len;
+    char token[MAX_COMPLEXITY_LEN];
+    uint8_t len;
 } ComplexityRule;
 
 typedef struct {
-	uint16_t n_extensions;
-	uint16_t n_filenames;
-	uint16_t n_shebangs;
-	uint16_t n_keywords;
-	uint16_t n_line_comments;
-	uint16_t n_multi_line;
-	uint16_t n_quotes;
-	uint16_t n_complexity;
+    uint16_t n_extensions;
+    uint16_t n_filenames;
+    uint16_t n_shebangs;
+    uint16_t n_keywords;
+    uint16_t n_line_comments;
+    uint16_t n_multi_line;
+    uint16_t n_quotes;
+    uint16_t n_complexity;
 
-	bool data_only;
-	bool nestedmultiline;
+    bool data_only;
+    bool nestedmultiline;
 
-	char name[MAX_LANG_NAME_LEN];
-	char complexitychecks_postfix[MAX_EXT_LEN];
-	char complexitychecks_postfix_excludes[MAX_EXT_LEN];
+    char name[MAX_LANG_NAME_LEN];
+    char complexitychecks_postfix[MAX_EXT_LEN];
+    char complexitychecks_postfix_excludes[MAX_EXT_LEN];
 
-	LineCommentRule line_comments[MAX_LINE_COMMENTS];
-	char filenames[MAX_FILENAMES][MAX_LANG_NAME_LEN];
-	char shebangs[MAX_SHEBANGS][MAX_EXT_LEN];
-	MultiLineRule multi_line[MAX_BLOCK_COMMENTS];
-	QuoteRule quotes[16];
-	char extensions[MAX_EXTENSIONS][MAX_EXT_LEN];
-	char keywords[MAX_KEYWORDS][MAX_EXT_LEN];
-	ComplexityRule complexity[MAX_COMPLEXITY_CHECKS];
+    LineCommentRule line_comments[MAX_LINE_COMMENTS];
+    char filenames[MAX_FILENAMES][MAX_LANG_NAME_LEN];
+    char shebangs[MAX_SHEBANGS][MAX_EXT_LEN];
+    MultiLineRule multi_line[MAX_BLOCK_COMMENTS];
+    QuoteRule quotes[16];
+    char extensions[MAX_EXTENSIONS][MAX_EXT_LEN];
+    char keywords[MAX_KEYWORDS][MAX_EXT_LEN];
+    ComplexityRule complexity[MAX_COMPLEXITY_CHECKS];
 
 } Language;
 
 typedef enum {
-	SCAN_NORMAL = 0,
-	SCAN_LINE_COMMENT,
-	SCAN_BLOCK_COMMENT,
-	SCAN_BLOCK_COMMENT_NESTED,
-	SCAN_STRING,
+    SCAN_NORMAL = 0,
+    SCAN_LINE_COMMENT,
+    SCAN_BLOCK_COMMENT,
+    SCAN_BLOCK_COMMENT_NESTED,
+    SCAN_STRING,
 } ScanState;
 
 typedef struct {
-	ScanState state;
+    ScanState state;
 
-	int block_index;
-	int quote_index;
+    int block_index;
+    int quote_index;
 
-	uint16_t block_depth;
+    uint16_t block_depth;
 
-	bool line_has_code;
-	bool line_has_comment;
+    bool line_has_code;
+    bool line_has_comment;
 } Scanner;
 
 /* ext becomes const because it wont change retroactively */
@@ -130,44 +130,44 @@ typedef struct {
  * lang_idx can be after counts and fills in the memory location causing us to
  * not need an extra 8 bytes of offset */
 typedef struct {
-	char* path;
-	const char* ext;
-	Counts counts;
-	int32_t lang_idx;
+    char* path;
+    const char* ext;
+    Counts counts;
+    int32_t lang_idx;
 } FileResult;
 
 /* Doesnt have to be int, make it defined, might make it unsigned later and
  * ensure we never use -1, then we can go down to uint16_t */
 typedef struct {
-	char ext[MAX_EXT_LEN];
-	int32_t lang_idx;
+    char ext[MAX_EXT_LEN];
+    int32_t lang_idx;
 } ExtEntry;
 
 typedef struct {
-	const char* path;
-	const char* ext;
+    const char* path;
+    const char* ext;
 } LangLookupParams;
 
 typedef enum {
-	LOC_SORT_TOTAL = 0,
-	LOC_SORT_CODE,
-	LOC_SORT_COMMENT,
-	LOC_SORT_BLANK,
-	LOC_SORT_FILES,
+    LOC_SORT_TOTAL = 0,
+    LOC_SORT_CODE,
+    LOC_SORT_COMMENT,
+    LOC_SORT_BLANK,
+    LOC_SORT_FILES,
 } LocSortOrder;
 
 typedef struct {
-	int num_files;
-	int num_langs;
-	int max_sums;
-	LocSortOrder sort_order;
+    int num_files;
+    int num_langs;
+    int max_sums;
+    LocSortOrder sort_order;
 } LocSumParams;
 
 typedef enum {
-	LOC_FMT_TERMINAL = 0, /* coloured ANSI table — the default */
-	LOC_FMT_JSON,
-	LOC_FMT_HTML,
-	LOC_FMT_SQL,
+    LOC_FMT_TERMINAL = 0, /* coloured ANSI table — the default */
+    LOC_FMT_JSON,
+    LOC_FMT_HTML,
+    LOC_FMT_SQL,
 } LocOutputFormat;
 
 #endif /* LOC_TYPES_H */

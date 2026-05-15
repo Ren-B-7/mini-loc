@@ -6,14 +6,6 @@ PROFILE_DIR = profiles
 EXECUTABLE_SINGLE = $(BIN_DIR)/$(TARGET_NAME)-single
 EXECUTABLE_MULTI = $(BIN_DIR)/$(TARGET_NAME)-multi
 
-# --- OS Detection ---
-# Detect if running on macOS to add specific headers
-UNAME_S := $(shell uname -s)
-DARWIN_FLAGS =
-ifeq ($(UNAME_S),Darwin)
-    DARWIN_FLAGS = -DDARWIN
-endif
-
 # --- Hardening Toggle ---
 # Allows 'make HARDENED=1' for a hardened build. Defaults to 0 (Disabled).
 HARDENED ?= 0
@@ -30,22 +22,39 @@ OBJS_COMMON = $(BUILD_DIR)/set.o $(BUILD_DIR)/cli.o $(BUILD_DIR)/count.o $(BUILD
 
 OBJ_SINGLE = $(BUILD_DIR)/mini-loc-single.o
 OBJ_MULTI = $(BUILD_DIR)/mini-loc-multi.o
-
-# Compiler
+# --- Compiler and OS Detection ---
 CC = gcc
+IS_GCC := $(shell $(CC) -v 2>&1 | grep -q "gcc" && echo 1 || echo 0)
+IS_DARWIN := $(shell uname -s | grep -q "Darwin" && echo 1 || echo 0)
+
+# CJSON detection
+CJSON_INC = -I/usr/include/cjson -I/usr/local/include -I/usr/local/include/cjson -I/opt/homebrew/include -I/opt/homebrew/include/cjson
+CJSON_LIB = -L/usr/local/lib -L/opt/homebrew/lib
+
+# DARWIN specific flags
+ifeq ($(IS_DARWIN),1)
+    DARWIN_FLAGS = -DDARWIN
+else
+    DARWIN_FLAGS =
+endif
 
 # Strict compilation flags
-CFLAGS = -std=c99 -D_POSIX_C_SOURCE=200809L -D_XOPEN_SOURCE=700 -D_DEFAULT_SOURCE -pedantic  \
+CFLAGS = -std=c99 -D_POSIX_C_SOURCE=200809L -D_XOPEN_SOURCE=700 -D_DEFAULT_SOURCE -pedantic \
          -pedantic-errors -Wall -Wextra -Wformat=2 -Wformat-security -Wnull-dereference \
-         -Wstack-protector -Wtrampolines -Walloca -Wvla \
-         -Warray-bounds=2 -Wimplicit-fallthrough=3 -Wshift-overflow=2 -Wcast-qual \
-         -Wcast-align=strict -Wconversion -Wsign-conversion -Wlogical-op -Wduplicated-cond -Wduplicated-branches \
-         -Wrestrict -Wnested-externs -Winline -Wundef -Wstrict-prototypes -Wmissing-prototypes \
-         -Wmissing-declarations -Wredundant-decls -Wshadow -Wwrite-strings \
-         -Wfloat-equal -Wpointer-arith -Wbad-function-cast -Wold-style-definition -Isrc -Isrc/include \
-         $(DARWIN_FLAGS)
+         -Isrc -Isrc/include $(CJSON_INC) $(DARWIN_FLAGS)
 
-# Security hardening flags
+# GCC-specific flags
+ifeq ($(IS_GCC),1)
+    GCC_FLAGS = -Wstack-protector -Wtrampolines -Walloca -Wvla \
+                -Warray-bounds=2 -Wimplicit-fallthrough=3 -Wshift-overflow=2 -Wcast-qual \
+                -Wcast-align=strict -Wconversion -Wsign-conversion -Wlogical-op -Wduplicated-cond \
+                -Wduplicated-branches -Wrestrict -Wnested-externs -Winline -Wundef -Wstrict-prototypes \
+                -Wmissing-prototypes -Wmissing-declarations -Wredundant-decls -Wshadow -Wwrite-strings \
+                -Wfloat-equal -Wpointer-arith -Wbad-function-cast -Wold-style-definition
+    CFLAGS += $(GCC_FLAGS)
+endif
+
+# Linking flags
 HARDENING_C = -D_FORTIFY_SOURCE=2 -fstack-protector-strong -fPIE -fstack-clash-protection -fcf-protection
 HARDENING_L = -Wl,-z,relro -Wl,-z,now -Wl,-z,noexecstack -Wl,-z,separate-code -pie
 
@@ -65,7 +74,10 @@ else
 endif
 
 ALL_CFLAGS = $(CFLAGS) $(SELECTED_HARDENING_C) $(OPTFLAGS) $(PGO_FLAGS) -pthread
-ALL_LDFLAGS = $(SELECTED_HARDENING_L) $(PGO_FLAGS) -lcjson
+# LD_FLAGS: flags before object files (hardening, PGO)
+LD_FLAGS = $(SELECTED_HARDENING_L) $(PGO_FLAGS)
+# LD_LIBS: libraries MUST trail object files when using -flto
+LD_LIBS = $(CJSON_LIB) -lcjson
 
 # Targets
 .PHONY: all clean run format lint check directories install uninstall build-json single multi pgo-gen optimized
@@ -103,10 +115,10 @@ $(BUILD_DIR)/set.o: src/include/set.c
 
 # Linking Rules
 single: $(OBJ_SINGLE) $(OBJS_COMMON)
-	$(CC) $(ALL_CFLAGS) $(ALL_LDFLAGS) -o $(EXECUTABLE_SINGLE) $^
+	$(CC) $(ALL_CFLAGS) $(LD_FLAGS) -o $(EXECUTABLE_SINGLE) $^ $(LD_LIBS)
 
 multi: $(OBJ_MULTI) $(OBJS_COMMON)
-	$(CC) $(ALL_CFLAGS) $(ALL_LDFLAGS) -o $(EXECUTABLE_MULTI) $^ -pthread
+	$(CC) $(ALL_CFLAGS) $(LD_FLAGS) -o $(EXECUTABLE_MULTI) $^ -pthread $(LD_LIBS)
 
 build-json: src/include/languages_data.h
 
