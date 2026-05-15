@@ -15,16 +15,10 @@
 
 static LocConfig g_cfg;
 
-typedef struct {
-	WorkQueue* queue;
-	LocConfig* cfg;
-} MultiUser;
-
-static void queue_push_cb(const char* path, size_t size, void* user)
+static void queue_push_cb(const char* path, void* user)
 {
-	MultiUser* u = (MultiUser*) user;
-	u->cfg->total_bytes += size;
-	wq_push(u->queue, strdup(path));
+	WorkQueue* q = (WorkQueue*) user;
+	wq_push(q, strdup(path));
 }
 
 static void* worker(void* arg)
@@ -89,8 +83,6 @@ __attribute__((cold)) int main(int argc, char** argv)
 	build_lookup_table();
 	WorkQueue queue;
 	wq_init(&queue, QUEUE_INIT_CAP);
-	MultiUser mu = {&queue, &g_cfg};
-
 	long nproc = sysconf(_SC_NPROCESSORS_ONLN);
 	if (nproc < 1) {
 		nproc = 1;
@@ -120,11 +112,11 @@ __attribute__((cold)) int main(int argc, char** argv)
 			}
 			continue;
 		}
-		process_path(argv[i], g_cfg.recurse, queue_push_cb, &mu);
+		process_path(argv[i], g_cfg.recurse, queue_push_cb, &queue);
 		any_path = true;
 	}
 	if (!any_path) {
-		process_path(".", g_cfg.recurse, queue_push_cb, &mu);
+		process_path(".", g_cfg.recurse, queue_push_cb, &queue);
 	}
 	wq_finish(&queue);
 	int total_files = 0;
@@ -141,8 +133,7 @@ __attribute__((cold)) int main(int argc, char** argv)
 		free(states[i].files);
 	}
 	loc_print_report(g_cfg.output_fmt, all_files, total_files, g_langs,
-	 g_n_langs, g_cfg.show_files, g_cfg.verbose, g_cfg.no_bytes,
-	 g_cfg.total_bytes, g_cfg.sort_order);
+	 g_n_langs, g_cfg.show_files, g_cfg.verbose, g_cfg.sort_order);
 	if (all_files) {
 		for (int i = 0; i < total_files; i++) {
 			free(all_files[i].path);
