@@ -158,6 +158,7 @@ Options:
 - Parrallel make file support
 - Add github actions for formatting and linting checks
 - Add better testing potentially with libfuzzer
+- Add byte counting for files processed, and update output.h to show this count
 
 ## License
 
