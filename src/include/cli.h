@@ -17,6 +17,8 @@ typedef struct {
 
 	LocOutputFormat output_fmt;
 	LocSortOrder sort_order;
+	size_t total_bytes;
+	bool no_bytes;
 } LocConfig;
 
 void loc_config_init(LocConfig* cfg);
