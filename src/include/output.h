@@ -58,7 +58,8 @@
  *   n_files    — number of valid entries in files[]
  *   langs      — g_langs array
  *   n_langs    — number of valid entries in langs[]
- *   params     — output parameters (show_files, verbose, no_bytes, total_bytes, sort_order)
+ *   params     — output parameters (show_files, verbose, no_bytes, total_bytes,
+ * sort_order)
  */
 static __attribute__((cold)) void loc_print_report(LocOutputFormat fmt,
  FileResult* files, int n_files, const Language* langs, int n_langs,
@@ -116,8 +117,10 @@ loc__sum_cmp(const void* lhs, const void* rhs)
         break;
     case LOC_SORT_TOTAL:
     default:
-        val_a = (uint64_t)la->counts.code + la->counts.comment + la->counts.blank;
-        val_b = (uint64_t)lb->counts.code + lb->counts.comment + lb->counts.blank;
+        val_a =
+         (uint64_t)la->counts.code + la->counts.comment + la->counts.blank;
+        val_b =
+         (uint64_t)lb->counts.code + lb->counts.comment + lb->counts.blank;
         break;
     }
     return (val_b > val_a) ? 1 : (val_b < val_a) ? -1 : 0;
@@ -145,8 +148,10 @@ loc__file_cmp(const void* lhs, const void* rhs)
         val_b = fb->counts.blank;
         break;
     case LOC_SORT_TOTAL:
-        val_a = (uint64_t)fa->counts.code + fa->counts.comment + fa->counts.blank;
-        val_b = (uint64_t)fb->counts.code + fb->counts.comment + fb->counts.blank;
+        val_a =
+         (uint64_t)fa->counts.code + fa->counts.comment + fa->counts.blank;
+        val_b =
+         (uint64_t)fb->counts.code + fb->counts.comment + fb->counts.blank;
         break;
     case LOC_SORT_FILES:
         if (fa->path && fb->path) {
@@ -345,11 +350,10 @@ static void loc_print_json(const FileResult* files_v, int n_files,
          "(unknown)" :
          (langs_v + sums[i].lang_idx)->name;
         loc__json_escape(name, esc, sizeof(esc));
-        uint64_t total =
-         (uint64_t)sums[i].counts.code + sums[i].counts.comment + sums[i].counts.blank;
-        double pct = (grand_total > 0) ?
-         100.0 * (double)total / (double)grand_total :
-         0.0;
+        uint64_t total = (uint64_t)sums[i].counts.code +
+         sums[i].counts.comment + sums[i].counts.blank;
+        double pct =
+         (grand_total > 0) ? 100.0 * (double)total / (double)grand_total : 0.0;
         printf(
          "    {\n"
          "      \"language\": \"%s\",\n"
@@ -470,8 +474,8 @@ static void loc_print_html(const FileResult* files_v, int n_files,
 
         loc__html_escape(name, esc, sizeof(esc));
 
-        uint64_t total =
-         (uint64_t)sums[i].counts.code + sums[i].counts.comment + sums[i].counts.blank;
+        uint64_t total = (uint64_t)sums[i].counts.code +
+         sums[i].counts.comment + sums[i].counts.blank;
 
         double pct = (grand_total > 0) ?
          (100.0 * (double)total / (double)grand_total) :
@@ -621,16 +625,16 @@ static void loc_print_sql(const FileResult* files_v, int n_files,
          "(unknown)" :
          (langs_v + sums[i].lang_idx)->name;
         loc__sql_escape(name, esc, sizeof(esc));
-        uint64_t total =
-         (uint64_t)sums[i].counts.code + sums[i].counts.comment + sums[i].counts.blank;
-        double pct = (grand_total > 0) ?
-         100.0 * (double)total / (double)grand_total :
-         0.0;
+        uint64_t total = (uint64_t)sums[i].counts.code +
+         sums[i].counts.comment + sums[i].counts.blank;
+        double pct =
+         (grand_total > 0) ? 100.0 * (double)total / (double)grand_total : 0.0;
 
         printf(
          "INSERT INTO loc_languages"
          " (run_id, language, files, code, comment, blank, total, pct)"
-         " VALUES ('%s', '%s', %d, %" PRIu32 ", %" PRIu32 ", %" PRIu32 ", %" PRIu64 ", "
+         " VALUES ('%s', '%s', %d, %" PRIu32 ", %" PRIu32 ", %" PRIu32
+         ", %" PRIu64 ", "
          "%.4f);"
          "\n",
          ts, esc, sums[i].files, sums[i].counts.code, sums[i].counts.comment,
@@ -724,12 +728,15 @@ static inline void loc_print_terminal(FileResult* files_v, int n_files,
             uint64_t total = code + comment + blank;
 
             if (params.verbose) {
-                printf("%-45s %-10s %9" PRIu64 " %9" PRIu64 " %9" PRIu64 " %9" PRIu64 "\n", (files_v + i)->path,
+                printf("%-45s %-10s %9" PRIu64 " %9" PRIu64 " %9" PRIu64
+                       " %9" PRIu64 "\n",
+                 (files_v + i)->path,
                  (files_v + i)->ext ? (files_v + i)->ext : "", code, comment,
                  blank, total);
             } else {
-                printf("%-55s %9" PRIu64 " %9" PRIu64 " %9" PRIu64 " %9" PRIu64 "\n", (files_v + i)->path, code,
-                 comment, blank, total);
+                printf("%-55s %9" PRIu64 " %9" PRIu64 " %9" PRIu64 " %9" PRIu64
+                       "\n",
+                 (files_v + i)->path, code, comment, blank, total);
             }
         }
 
@@ -744,8 +751,8 @@ static inline void loc_print_terminal(FileResult* files_v, int n_files,
            "-----------------------\n");
 
     for (int i = 0; i < n_sums; i++) {
-        uint64_t total =
-         (uint64_t)sums[i].counts.code + sums[i].counts.comment + sums[i].counts.blank;
+        uint64_t total = (uint64_t)sums[i].counts.code +
+         sums[i].counts.comment + sums[i].counts.blank;
 
         double pct = (grand_total > 0) ?
          (100.0 * (double)total / (double)grand_total) :
@@ -770,16 +777,16 @@ static inline void loc_print_terminal(FileResult* files_v, int n_files,
     }
     printf("-------------------------------------------------------------------"
            "-----------------------\n");
-    printf("%-30s %7" PRIu64 " %10" PRIu64 " %6.1f%% %10" PRIu64 " %10" PRIu64 " %10" PRIu64 "\n\n", "TOTAL", t_files,
-     t_code, 100.0, t_comment, t_blank, grand_total);
+    printf("%-30s %7" PRIu64 " %10" PRIu64 " %6.1f%% %10" PRIu64 " %10" PRIu64
+           " %10" PRIu64 "\n\n",
+     "TOTAL", t_files, t_code, 100.0, t_comment, t_blank, grand_total);
 
     printf("Breakdown: %s Code %3.1f%% %s|%s Comment %3.1f%% %s|%s Blank "
            "%3.1f%%%s",
      LOC_TERM_GREEN, (double)(100.0 * (double)t_code / (double)grand_total),
      LOC_TERM_RESET, LOC_TERM_YELLOW,
-     (double)(100.0 * (double)t_comment / (double)grand_total),
-     LOC_TERM_RESET, LOC_TERM_GRAY,
-     (double)(100.0 * (double)t_blank / (double)grand_total),
+     (double)(100.0 * (double)t_comment / (double)grand_total), LOC_TERM_RESET,
+     LOC_TERM_GRAY, (double)(100.0 * (double)t_blank / (double)grand_total),
      LOC_TERM_RESET);
 
     if (!params.no_bytes) {
