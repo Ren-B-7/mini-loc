@@ -5,7 +5,7 @@
    POSIX) restores it for this translation unit only, without affecting other
    files or conflicting with the POSIX flags. */
 #if defined(__APPLE__)
-#  define _DARWIN_C_SOURCE
+#define _DARWIN_C_SOURCE
 #endif
 
 #include <stdio.h>
@@ -13,22 +13,24 @@
 #include <string.h>
 
 #if defined(_WIN32)
-#  include <windows.h>
+#include <windows.h>
 /* MinGW provides pthread via winpthreads */
-#  include <pthread.h>
+#include <pthread.h>
+
 static inline long get_nproc_win32(void)
 {
     SYSTEM_INFO si;
     GetSystemInfo(&si);
-    return (long)si.dwNumberOfProcessors;
+    return (long) si.dwNumberOfProcessors;
 }
-#  define GET_NPROC() get_nproc_win32()
-#  define COLD_ATTR
+
+#define GET_NPROC() get_nproc_win32()
+#define COLD_ATTR
 #else
-#  include <pthread.h>
-#  include <unistd.h>
-#  define GET_NPROC() sysconf(_SC_NPROCESSORS_ONLN)
-#  define COLD_ATTR __attribute__((cold))
+#include <pthread.h>
+#include <unistd.h>
+#define GET_NPROC() sysconf(_SC_NPROCESSORS_ONLN)
+#define COLD_ATTR __attribute__((cold))
 #endif
 
 #include "include/cli.h"
@@ -42,8 +44,9 @@ static inline long get_nproc_win32(void)
 
 static LocConfig g_cfg;
 
-static void queue_push_cb(const char* path, void* user)
+static void queue_push_cb(const char* path, size_t size, void* user)
 {
+    g_cfg.total_bytes += size;
     WorkQueue* q = (WorkQueue*) user;
     wq_push(q, strdup(path));
 }
@@ -57,10 +60,6 @@ static void* worker(void* arg)
             break;
         }
         const char* ext = strrchr(path, '.');
-        if (is_ignored_extension(ext)) {
-            free(path);
-            continue;
-        }
         int li = find_language((LangLookupParams) {path, ext});
         if (li == -1) {
             li = find_language((LangLookupParams) {path, NULL});
@@ -160,7 +159,9 @@ COLD_ATTR int main(int argc, char** argv)
         free(states[i].files);
     }
     loc_print_report(g_cfg.output_fmt, all_files, total_files, g_langs,
-     g_n_langs, g_cfg.show_files, g_cfg.verbose, g_cfg.sort_order);
+     g_n_langs,
+     (LocOutputParams) {g_cfg.show_files, g_cfg.verbose, g_cfg.no_bytes,
+         g_cfg.total_bytes, g_cfg.sort_order});
     if (all_files) {
         for (int i = 0; i < total_files; i++) {
             free(all_files[i].path);

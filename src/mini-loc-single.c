@@ -22,13 +22,11 @@ static int g_n_files = 0;
 static int g_capacity = 0;
 static LocConfig g_cfg;
 
-static void process_file_cb(const char* path, void* user)
+static void process_file_cb(const char* path, size_t size, void* user)
 {
     (void) user;
     const char* ext = strrchr(path, '.');
-    if (is_ignored_extension(ext)) {
-        return;
-    }
+    g_cfg.total_bytes += size;
     if (g_n_files >= g_capacity) {
         g_capacity = g_capacity == 0 ? 1024 : g_capacity * 2;
         FileResult* temp = (FileResult*) realloc(g_files,
@@ -86,7 +84,8 @@ COLD_ATTR int main(int argc, char** argv)
         process_path(".", g_cfg.recurse, process_file_cb, NULL);
     }
     loc_print_report(g_cfg.output_fmt, g_files, g_n_files, g_langs, g_n_langs,
-     g_cfg.show_files, g_cfg.verbose, g_cfg.sort_order);
+     (LocOutputParams) {g_cfg.show_files, g_cfg.verbose, g_cfg.no_bytes,
+         g_cfg.total_bytes, g_cfg.sort_order});
     if (g_files) {
         for (int i = 0; i < g_n_files; i++) {
             free(g_files[i].path);

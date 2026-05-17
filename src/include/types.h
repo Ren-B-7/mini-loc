@@ -170,4 +170,18 @@ typedef enum {
     LOC_FMT_SQL,
 } LocOutputFormat;
 
+typedef struct {
+    bool show_files;
+    bool verbose;
+    bool no_bytes;
+    size_t total_bytes;
+    LocSortOrder sort_order;
+} LocOutputParams;
+
+typedef struct {
+    int lang_idx;
+    int files;
+    Counts counts;
+} LocLangSum;
+
 #endif /* LOC_TYPES_H */

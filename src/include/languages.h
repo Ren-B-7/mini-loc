@@ -50,15 +50,4 @@ void build_lookup_table(void);
  */
 int find_language(LangLookupParams params);
 
-/*
- * Returns true if the extension should be skipped.
- *
- * Used for:
- * - binaries
- * - archives
- * - media
- * - generated assets
- */
-bool is_ignored_extension(const char* ext);
-
 #endif /* LOC_LANGUAGES_H */

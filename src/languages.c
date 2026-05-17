@@ -261,9 +261,3 @@ int find_language(LangLookupParams params)
 
     return found ? found->lang_idx : -1;
 }
-
-__attribute__((cold)) bool is_ignored_extension(const char* ext)
-{
-    (void) ext;
-    return false;
-}
