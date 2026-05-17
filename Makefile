@@ -80,7 +80,7 @@ LD_FLAGS = $(SELECTED_HARDENING_L) $(PGO_FLAGS)
 LD_LIBS = $(CJSON_LIB) -lcjson
 
 # Targets
-.PHONY: all clean run format lint check directories install uninstall build-json single multi pgo-gen optimized
+.PHONY: all clean run format lint check directories install uninstall build-json single multi pgo-gen optimized install-multi bench install-single default check-binaries
 
 default: directories single multi
 all: check build-json directories single multi
