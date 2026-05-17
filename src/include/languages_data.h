@@ -237,7 +237,7 @@ typedef struct {
     const Language* pl_sql;
     const Language* prql;
     const Language* psl_assertion;
-    const Language* pascal;
+    const Language* pascal_lang;
     const Language* patch;
     const Language* perl;
     const Language* picat;

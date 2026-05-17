@@ -16,6 +16,48 @@ def escape_c_string(s):
     return res
 
 
+RESERVED = {
+    "pascal",
+    "fortran",
+    "asm",
+    "inline",
+    "restrict",
+    "typeof",
+    "auto",
+    "break",
+    "case",
+    "char",
+    "const",
+    "continue",
+    "default",
+    "do",
+    "double",
+    "else",
+    "enum",
+    "extern",
+    "float",
+    "for",
+    "goto",
+    "if",
+    "int",
+    "long",
+    "register",
+    "return",
+    "short",
+    "signed",
+    "sizeof",
+    "static",
+    "struct",
+    "switch",
+    "typedef",
+    "union",
+    "unsigned",
+    "void",
+    "volatile",
+    "while",
+}
+
+
 def sanitize(k):
     s = (
         k.lower()
@@ -30,6 +72,10 @@ def sanitize(k):
     if not s or s[0].isdigit():
         s = "_" + s
     s = "".join([c if c.isalnum() or c == "_" else "_" for c in s])
+
+    if s in RESERVED:
+        s += "_lang"
+
     return s
 
 

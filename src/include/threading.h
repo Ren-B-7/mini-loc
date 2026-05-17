@@ -7,10 +7,12 @@
 #include "types.h"
 
 /* Compiler attribute compat */
+#ifndef COLD_ATTR
 #if defined(__GNUC__) || defined(__clang__)
 #define COLD_ATTR __attribute__((cold))
 #else
 #define COLD_ATTR
+#endif
 #endif
 
 /* pthread: available natively on Linux/macOS; on Windows requires MinGW
