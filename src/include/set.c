@@ -37,7 +37,7 @@ set_relayout_nodes(uint64_t start, SimpleSet* set, short end_on_null);
 
 int set_init_alt(SimpleSet* set, uint64_t num_els, set_hash_function hash)
 {
-    set->nodes = (simple_set_node**) malloc(num_els * sizeof(simple_set_node*));
+    set->nodes = (simple_set_node**)malloc(num_els * sizeof(simple_set_node*));
     if (set->nodes == NULL) {
         return SET_MALLOC_ERROR;
     }
@@ -66,7 +66,7 @@ int set_clear(SimpleSet* set)
 int set_destroy(SimpleSet* set)
 {
     set_clear(set);
-    free((void*) set->nodes);
+    free((void*)set->nodes);
     set->number_nodes = 0;
     set->used_nodes = 0;
     set->hash_function = NULL;
@@ -123,12 +123,12 @@ uint64_t set_length(const SimpleSet* set)
 char** set_to_array(const SimpleSet* set, uint64_t* size)
 {
     *size = set->used_nodes;
-    char** results = (char**) calloc(set->used_nodes + 1, sizeof(char*));
+    char** results = (char**)calloc(set->used_nodes + 1, sizeof(char*));
     uint64_t i, j = 0;
     for (i = 0; i < set->number_nodes; ++i) {
         if (set->nodes[i] != NULL) {
             size_t len = set->nodes[i]->_len;
-            results[j] = (char*) calloc(len + 1, sizeof(char));
+            results[j] = (char*)calloc(len + 1, sizeof(char));
             memcpy(results[j], set->nodes[i]->_key, len);
             ++j;
         }
@@ -278,7 +278,7 @@ static uint64_t set_default_hash(const char* key, key_size_tt len)
     // FNV-1a hash (http://www.isthe.com/chongo/tech/comp/fnv/)
     uint64_t h = 14695981039346656037ULL; // FNV_OFFSET 64 bit
     for (size_t i = 0; i < len; ++i) {
-        h = h ^ (unsigned char) key[i];
+        h = h ^ (unsigned char)key[i];
         h = h * 1099511628211ULL; // FNV_PRIME 64 bit
     }
     return h;
@@ -302,7 +302,7 @@ set_add_hash(uint64_t hash, SimpleSet* set, const char* key, key_size_tt len)
     // Expand nodes if we are close to our desired fullness
     if (set->used_nodes * 4 > set->number_nodes) {
         uint64_t num_els = set->number_nodes * 2; // we want to double each time
-        simple_set_node** tmp = (simple_set_node**) realloc((void*) set->nodes,
+        simple_set_node** tmp = (simple_set_node**)realloc((void*)set->nodes,
          num_els * sizeof(simple_set_node*));
         if (tmp == NULL) { // malloc failure
             return SET_MALLOC_ERROR;
@@ -357,8 +357,8 @@ static int set_get_index(uint64_t hash, const SimpleSet* set, const char* key,
 static int set_assign_node(uint64_t hash, SimpleSet* set, uint64_t index,
  const char* key, key_size_tt len)
 {
-    set->nodes[index] = (simple_set_node*) malloc(sizeof(simple_set_node));
-    set->nodes[index]->_key = (char*) calloc(len + 1, sizeof(char));
+    set->nodes[index] = (simple_set_node*)malloc(sizeof(simple_set_node));
+    set->nodes[index]->_key = (char*)calloc(len + 1, sizeof(char));
     set->nodes[index]->_len = len;
     memcpy(set->nodes[index]->_key, key, len);
     set->nodes[index]->_hash = hash;

@@ -43,7 +43,7 @@ static void walk_dir_recursive(const char* path, size_t path_len, bool recurse,
         if (entry->d_type == DT_REG) {
             struct stat st;
             if (lstat(sub, &st) == 0) {
-                cb(sub, (size_t) st.st_size, user);
+                cb(sub, (size_t)st.st_size, user);
             }
         } else if (entry->d_type == DT_DIR && recurse) {
             walk_dir_recursive(sub, path_len + 1 + nlen, recurse, cb, user);
@@ -58,7 +58,7 @@ static void walk_dir_recursive(const char* path, size_t path_len, bool recurse,
             struct stat st;
             if (lstat(sub, &st) == 0) {
                 if (S_ISREG(st.st_mode)) {
-                    cb(sub, (size_t) st.st_size, user);
+                    cb(sub, (size_t)st.st_size, user);
                 } else if (S_ISDIR(st.st_mode) && recurse) {
                     walk_dir_recursive(sub, path_len + 1 + nlen, recurse, cb,
                      user);
@@ -92,5 +92,5 @@ void process_path(const char* path, bool recurse, FileCallback cb, void* user)
     if (!S_ISREG(st.st_mode)) {
         return;
     }
-    cb(path, (size_t) st.st_size, user);
+    cb(path, (size_t)st.st_size, user);
 }

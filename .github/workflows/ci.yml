@@ -20,7 +20,7 @@ jobs:
         run: mbake format --check Makefile
       - name: Check formatting
         run: |
-          clang-format --version && clang-format --dry-run --style=file:./.clang-format -i src/*.c src/include/*.h
+          clang-format --version && clang-format --dry-run --style=file:./.clang-format -Werror src/*.c src/*.h src/include/*.c src/include/*.h
       - name: Run linting
         run: |
           make lint

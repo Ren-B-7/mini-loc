@@ -314,7 +314,7 @@ SortIncludes: CaseInsensitive
 
 # SpaceAfterCStyleCast (bool)
 # If true, a space may be inserted after C style casts.
-SpaceAfterCStyleCast: true
+SpaceAfterCStyleCast: false
 
 # SpaceBeforeAssignmentOperators (bool)
 # If false, spaces will be removed before assignment operators.

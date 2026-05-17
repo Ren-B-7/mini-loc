@@ -21,7 +21,7 @@ static inline long get_nproc_win32(void)
 {
     SYSTEM_INFO si;
     GetSystemInfo(&si);
-    return (long) si.dwNumberOfProcessors;
+    return (long)si.dwNumberOfProcessors;
 }
 
 #define GET_NPROC() get_nproc_win32()
@@ -47,22 +47,22 @@ static LocConfig g_cfg;
 static void queue_push_cb(const char* path, size_t size, void* user)
 {
     g_cfg.total_bytes += size;
-    WorkQueue* q = (WorkQueue*) user;
+    WorkQueue* q = (WorkQueue*)user;
     wq_push(q, strdup(path));
 }
 
 static void* worker(void* arg)
 {
-    ThreadState* ts = (ThreadState*) arg;
+    ThreadState* ts = (ThreadState*)arg;
     while (true) {
         char* path = wq_pop(ts->queue);
         if (!path) {
             break;
         }
         const char* ext = strrchr(path, '.');
-        int li = find_language((LangLookupParams) {path, ext});
+        int li = find_language((LangLookupParams){path, ext});
         if (li == -1) {
-            li = find_language((LangLookupParams) {path, NULL});
+            li = find_language((LangLookupParams){path, NULL});
         }
         if (li == -1 && !g_cfg.list_unknown) {
             free(path);
@@ -70,7 +70,7 @@ static void* worker(void* arg)
         }
         if (ts->n_files >= ts->capacity) {
             size_t new_capacity =
-             ts->capacity == 0 ? 1024 : (size_t) ts->capacity * 2;
+             ts->capacity == 0 ? 1024 : (size_t)ts->capacity * 2;
             FileResult* new_files =
              realloc(ts->files, sizeof(FileResult) * new_capacity);
             if (!new_files) {
@@ -78,7 +78,7 @@ static void* worker(void* arg)
                 return NULL;
             }
             ts->files = new_files;
-            ts->capacity = (int) new_capacity;
+            ts->capacity = (int)new_capacity;
         }
         FileResult* fr = &ts->files[ts->n_files++];
         fr->lang_idx = li;
@@ -116,7 +116,7 @@ COLD_ATTR int main(int argc, char** argv)
     if (nproc > MAX_THREADS) {
         nproc = MAX_THREADS;
     }
-    int n_threads = (int) nproc;
+    int n_threads = (int)nproc;
     pthread_t threads[MAX_THREADS];
     ThreadState states[MAX_THREADS];
     for (int i = 0; i < n_threads; i++) {
@@ -150,17 +150,17 @@ COLD_ATTR int main(int argc, char** argv)
         pthread_join(threads[i], NULL);
         total_files += states[i].n_files;
     }
-    FileResult* all_files = malloc(sizeof(FileResult) * (size_t) total_files);
+    FileResult* all_files = malloc(sizeof(FileResult) * (size_t)total_files);
     int offset = 0;
     for (int i = 0; i < n_threads; i++) {
         memcpy(&all_files[offset], states[i].files,
-         sizeof(FileResult) * (size_t) states[i].n_files);
+         sizeof(FileResult) * (size_t)states[i].n_files);
         offset += states[i].n_files;
         free(states[i].files);
     }
     loc_print_report(g_cfg.output_fmt, all_files, total_files, g_langs,
      g_n_langs,
-     (LocOutputParams) {g_cfg.show_files, g_cfg.verbose, g_cfg.no_bytes,
+     (LocOutputParams){g_cfg.show_files, g_cfg.verbose, g_cfg.no_bytes,
          g_cfg.total_bytes, g_cfg.sort_order});
     if (all_files) {
         for (int i = 0; i < total_files; i++) {

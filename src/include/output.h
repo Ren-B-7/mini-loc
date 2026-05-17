@@ -94,8 +94,8 @@ static LocSortOrder g_sort_order = LOC_SORT_TOTAL;
 static inline __attribute__((cold)) int
 loc__sum_cmp(const void* lhs, const void* rhs)
 {
-    const LocLangSum* la = (const LocLangSum*) lhs;
-    const LocLangSum* lb = (const LocLangSum*) rhs;
+    const LocLangSum* la = (const LocLangSum*)lhs;
+    const LocLangSum* lb = (const LocLangSum*)rhs;
     long val_a = 0, val_b = 0;
 
     switch (g_sort_order) {
@@ -128,8 +128,8 @@ loc__sum_cmp(const void* lhs, const void* rhs)
 static inline __attribute__((cold)) int
 loc__file_cmp(const void* lhs, const void* rhs)
 {
-    const FileResult* fa = (const FileResult*) lhs;
-    const FileResult* fb = (const FileResult*) rhs;
+    const FileResult* fa = (const FileResult*)lhs;
+    const FileResult* fb = (const FileResult*)rhs;
     long val_a = 0, val_b = 0;
 
     switch (g_sort_order) {
@@ -266,7 +266,7 @@ static int loc__build_sums(const FileResult* files_v, LocSumParams params,
     int map_size = params.num_langs + 2; /* +1 for the sentinel, +1 for
                                             unknown(-1) */
     int lang_to_sum[MAX_LANGS + 2];
-    if (map_size > (int) (sizeof(lang_to_sum) / sizeof(int))) {
+    if (map_size > (int)(sizeof(lang_to_sum) / sizeof(int))) {
         return 0;
     }
     for (int i = 0; i < map_size; i++) {
@@ -303,7 +303,7 @@ static int loc__build_sums(const FileResult* files_v, LocSumParams params,
     }
 
     g_sort_order = params.sort_order;
-    qsort(out_sums, (size_t) n_sums, sizeof(LocLangSum), loc__sum_cmp);
+    qsort(out_sums, (size_t)n_sums, sizeof(LocLangSum), loc__sum_cmp);
 
     for (int i = 0; i < n_sums; i++) {
         *t_files += out_sums[i].files;
@@ -326,7 +326,7 @@ static void loc_print_json(const FileResult* files_v, int n_files,
     long t_files = 0, t_code = 0, t_comm = 0, t_blank = 0;
 
     int n_sums = loc__build_sums(files_v,
-     (LocSumParams) {n_files, n_langs, MAX_SUMS_JSON, params.sort_order}, sums,
+     (LocSumParams){n_files, n_langs, MAX_SUMS_JSON, params.sort_order}, sums,
      &t_files, &t_code, &t_comm, &t_blank);
     long grand_total = t_code + t_comm + t_blank;
 
@@ -343,9 +343,8 @@ static void loc_print_json(const FileResult* files_v, int n_files,
         loc__json_escape(name, esc, sizeof(esc));
         long total =
          sums[i].counts.code + sums[i].counts.comment + sums[i].counts.blank;
-        double pct = (grand_total > 0) ?
-         100.0 * (double) total / (double) grand_total :
-         0.0;
+        double pct =
+         (grand_total > 0) ? 100.0 * (double)total / (double)grand_total : 0.0;
         printf(
          "    {\n"
          "      \"language\": \"%s\",\n"
@@ -423,7 +422,7 @@ static void loc_print_html(const FileResult* files_v, int n_files,
 {
 #define MAX_SUMS_HTML 1024
 
-    LocLangSum* sums = (LocLangSum*) calloc(MAX_SUMS_HTML, sizeof(LocLangSum));
+    LocLangSum* sums = (LocLangSum*)calloc(MAX_SUMS_HTML, sizeof(LocLangSum));
 
     if (!sums) {
         return;
@@ -435,7 +434,7 @@ static void loc_print_html(const FileResult* files_v, int n_files,
     long t_blank = 0;
 
     int n_sums = loc__build_sums(files_v,
-     (LocSumParams) {n_files, n_langs, MAX_SUMS_HTML, params.sort_order}, sums,
+     (LocSumParams){n_files, n_langs, MAX_SUMS_HTML, params.sort_order}, sums,
      &t_files, &t_code, &t_comment, &t_blank);
 
     long grand_total = t_code + t_comment + t_blank;
@@ -470,7 +469,7 @@ static void loc_print_html(const FileResult* files_v, int n_files,
          sums[i].counts.code + sums[i].counts.comment + sums[i].counts.blank;
 
         double pct = (grand_total > 0) ?
-         (100.0 * (double) total / (double) grand_total) :
+         (100.0 * (double)total / (double)grand_total) :
          0.0;
 
         printf(
@@ -569,7 +568,7 @@ static void loc_print_sql(const FileResult* files_v, int n_files,
     long t_files = 0, t_code = 0, t_comm = 0, t_blank = 0;
 
     int n_sums = loc__build_sums(files_v,
-     (LocSumParams) {n_files, n_langs, MAX_SUMS_SQL, params.sort_order}, sums,
+     (LocSumParams){n_files, n_langs, MAX_SUMS_SQL, params.sort_order}, sums,
      &t_files, &t_code, &t_comm, &t_blank);
 
     long grand_total = t_code + t_comm + t_blank;
@@ -619,9 +618,8 @@ static void loc_print_sql(const FileResult* files_v, int n_files,
         loc__sql_escape(name, esc, sizeof(esc));
         long total =
          sums[i].counts.code + sums[i].counts.comment + sums[i].counts.blank;
-        double pct = (grand_total > 0) ?
-         100.0 * (double) total / (double) grand_total :
-         0.0;
+        double pct =
+         (grand_total > 0) ? 100.0 * (double)total / (double)grand_total : 0.0;
 
         printf(
          "INSERT INTO loc_languages"
@@ -681,7 +679,7 @@ static inline void loc_print_terminal(FileResult* files_v, int n_files,
         return;
     }
 
-    LocLangSum* sums = (LocLangSum*) calloc(MAX_SUMS_TERM, sizeof(LocLangSum));
+    LocLangSum* sums = (LocLangSum*)calloc(MAX_SUMS_TERM, sizeof(LocLangSum));
 
     if (!sums) {
         return;
@@ -693,14 +691,14 @@ static inline void loc_print_terminal(FileResult* files_v, int n_files,
     long t_blank = 0;
 
     int n_sums = loc__build_sums(files_v,
-     (LocSumParams) {n_files, n_langs, MAX_SUMS_TERM, params.sort_order}, sums,
+     (LocSumParams){n_files, n_langs, MAX_SUMS_TERM, params.sort_order}, sums,
      &t_files, &t_code, &t_comment, &t_blank);
 
     long grand_total = t_code + t_comment + t_blank;
 
     if (params.show_files) {
         g_sort_order = params.sort_order;
-        qsort(files_v, (size_t) n_files, sizeof(FileResult), loc__file_cmp);
+        qsort(files_v, (size_t)n_files, sizeof(FileResult), loc__file_cmp);
 
         printf("\n%sPer-File Results%s\n\n", LOC_TERM_CYAN, LOC_TERM_RESET);
 
@@ -744,7 +742,7 @@ static inline void loc_print_terminal(FileResult* files_v, int n_files,
          sums[i].counts.code + sums[i].counts.comment + sums[i].counts.blank;
 
         double pct = (grand_total > 0) ?
-         (100.0 * (double) total / (double) grand_total) :
+         (100.0 * (double)total / (double)grand_total) :
          0.0;
 
         const char* name =
@@ -771,11 +769,10 @@ static inline void loc_print_terminal(FileResult* files_v, int n_files,
 
     printf("Breakdown: %s Code %3.1f%% %s|%s Comment %3.1f%% %s|%s Blank "
            "%3.1f%%%s",
-     LOC_TERM_GREEN, (double) (100.0 * (double) t_code / (double) grand_total),
+     LOC_TERM_GREEN, (double)(100.0 * (double)t_code / (double)grand_total),
      LOC_TERM_RESET, LOC_TERM_YELLOW,
-     (double) (100.0 * (double) t_comment / (double) grand_total),
-     LOC_TERM_RESET, LOC_TERM_GRAY,
-     (double) (100.0 * (double) t_blank / (double) grand_total),
+     (double)(100.0 * (double)t_comment / (double)grand_total), LOC_TERM_RESET,
+     LOC_TERM_GRAY, (double)(100.0 * (double)t_blank / (double)grand_total),
      LOC_TERM_RESET);
 
     if (!params.no_bytes) {

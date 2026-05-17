@@ -45,7 +45,7 @@ static inline __attribute__((always_inline)) bool is_whitespace(unsigned char c)
 static inline __attribute__((always_inline)) bool
 match_token(const char* p, const char* end, const char* token, uint8_t len)
 {
-    if ((size_t) (end - p) < len) {
+    if ((size_t)(end - p) < len) {
         return false;
     }
 
@@ -98,27 +98,27 @@ static void build_dispatch_table(Language* lang)
 {
     memset(g_dispatch, 0xFF, sizeof(g_dispatch));
     for (int i = 0; i < lang->n_quotes; i++) {
-        g_dispatch[(uint8_t) lang->quotes[i].start[0]].quote_idx = (uint8_t) i;
+        g_dispatch[(uint8_t)lang->quotes[i].start[0]].quote_idx = (uint8_t)i;
     }
     for (int i = 0; i < lang->n_line_comments; i++) {
-        g_dispatch[(uint8_t) lang->line_comments[i].start[0]].line_comment_idx =
-         (uint8_t) i;
+        g_dispatch[(uint8_t)lang->line_comments[i].start[0]].line_comment_idx =
+         (uint8_t)i;
     }
     for (int i = 0; i < lang->n_multi_line; i++) {
-        g_dispatch[(uint8_t) lang->multi_line[i].start[0]].block_comment_idx =
-         (uint8_t) i;
+        g_dispatch[(uint8_t)lang->multi_line[i].start[0]].block_comment_idx =
+         (uint8_t)i;
     }
 }
 
 static inline void finalize_line(Scanner* s, Counts* c)
 {
-    int has_code = (int) s->line_has_code;
-    int has_comment = (int) s->line_has_comment & ~has_code;
+    int has_code = (int)s->line_has_code;
+    int has_comment = (int)s->line_has_comment & ~has_code;
     int is_blank = 1 - has_code - has_comment;
 
-    c->code += (uint32_t) has_code;
-    c->comment += (uint32_t) has_comment;
-    c->blank += (uint32_t) is_blank;
+    c->code += (uint32_t)has_code;
+    c->comment += (uint32_t)has_comment;
+    c->blank += (uint32_t)is_blank;
 
     s->line_has_code = false;
     s->line_has_comment = false;
@@ -156,7 +156,7 @@ Counts count_file(const char* path, int lang_idx)
         return c;
     }
 
-    size_t size = (size_t) file_len;
+    size_t size = (size_t)file_len;
 
     /*
      * Prevent overflow on +1
@@ -198,7 +198,7 @@ Counts count_file(const char* path, int lang_idx)
     const char* end = buf + nread;
 
     while (p < end) {
-        unsigned char ch = (unsigned char) *p;
+        unsigned char ch = (unsigned char)*p;
 
         if (__builtin_expect(char_table[ch] & CHAR_NEWLINE, 0)) {
             finalize_line(&s, &c);
@@ -320,7 +320,7 @@ Counts count_file(const char* path, int lang_idx)
      * Final line without trailing newline
      */
     if (s.line_has_code || s.line_has_comment ||
-     (p > buf && !(char_table[(unsigned char) *(p - 1)] & CHAR_NEWLINE))) {
+     (p > buf && !(char_table[(unsigned char)*(p - 1)] & CHAR_NEWLINE))) {
         finalize_line(&s, &c);
     }
 

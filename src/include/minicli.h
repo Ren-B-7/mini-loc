@@ -39,9 +39,9 @@ static void cli_print_completions(const CliParser* parser, const char* shell);
 
 static int handle_help(int argc, char** argv, void* user_data)
 {
-    (void) argc;
-    (void) argv;
-    cli_print_help((CliParser*) user_data);
+    (void)argc;
+    (void)argv;
+    cli_print_help((CliParser*)user_data);
     exit(0);
     return 0;
 }
@@ -49,7 +49,7 @@ static int handle_help(int argc, char** argv, void* user_data)
 static int handle_completions(int argc, char** argv, void* user_data)
 {
     if (argc > 0) {
-        cli_print_completions((CliParser*) user_data, argv[0]);
+        cli_print_completions((CliParser*)user_data, argv[0]);
         exit(0);
     }
     return 0;
@@ -62,7 +62,7 @@ static inline int cli_init(CliParser* parser, CliInitParams params)
     parser->arg_count = 0;
     parser->arg_capacity = DEFAULT_ARG_CAPACITY;
     parser->registered_args =
-     (CliArgument*) malloc(sizeof(CliArgument) * parser->arg_capacity);
+     (CliArgument*)malloc(sizeof(CliArgument) * parser->arg_capacity);
 
     int res = set_init(&parser->arguments);
     if (res != 0) {
@@ -70,9 +70,9 @@ static inline int cli_init(CliParser* parser, CliInitParams params)
     }
 
     cli_add_argument(parser,
-     (CliArgument) {"--help", "-h", "Display this help", handle_help, parser});
+     (CliArgument){"--help", "-h", "Display this help", handle_help, parser});
     cli_add_argument(parser,
-     (CliArgument) {"--completions", NULL, "Print shell completions (bash/zsh)",
+     (CliArgument){"--completions", NULL, "Print shell completions (bash/zsh)",
          handle_completions, parser});
 
     return 0;
@@ -82,7 +82,7 @@ static void cli_add_argument(CliParser* parser, CliArgument arg)
 {
     if (parser->arg_count >= parser->arg_capacity) {
         parser->arg_capacity *= 2;
-        CliArgument* temp = (CliArgument*) realloc(parser->registered_args,
+        CliArgument* temp = (CliArgument*)realloc(parser->registered_args,
          sizeof(CliArgument) * parser->arg_capacity);
         if (!temp) {
             return;

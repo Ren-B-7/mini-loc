@@ -5,7 +5,7 @@
 
 int wq_init(WorkQueue* q, size_t initial_cap)
 {
-    q->paths = (char**) malloc(sizeof(char*) * initial_cap);
+    q->paths = (char**)malloc(sizeof(char*) * initial_cap);
     if (!q->paths) {
         return -1;
     }
@@ -25,7 +25,7 @@ void wq_push(WorkQueue* q, char* path)
     pthread_mutex_lock(&q->lock);
     while (q->count == q->cap) {
         size_t new_cap = q->cap * 2;
-        char** new_buf = (char**) malloc(sizeof(char*) * new_cap);
+        char** new_buf = (char**)malloc(sizeof(char*) * new_cap);
         if (!new_buf) {
             pthread_cond_wait(&q->not_full, &q->lock);
             continue;
@@ -33,7 +33,7 @@ void wq_push(WorkQueue* q, char* path)
         for (size_t i = 0; i < q->count; i++) {
             new_buf[i] = q->paths[(q->head + i) % q->cap];
         }
-        free((void*) q->paths);
+        free((void*)q->paths);
         q->paths = new_buf;
         q->head = 0;
         q->tail = q->count;
@@ -75,7 +75,7 @@ void wq_finish(WorkQueue* q)
 
 COLD_ATTR void wq_destroy(WorkQueue* q)
 {
-    free((void*) q->paths);
+    free((void*)q->paths);
     pthread_cond_destroy(&q->not_full);
     pthread_cond_destroy(&q->not_empty);
     pthread_mutex_destroy(&q->lock);

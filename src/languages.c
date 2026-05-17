@@ -52,7 +52,7 @@ void load_languages_from_file(const char* path, bool append)
         return;
     }
 
-    size_t file_size = (size_t) len;
+    size_t file_size = (size_t)len;
 
     /* calloc zero-initialises the buffer, so the null terminator at
        data[file_size] is already in place before fread runs. This avoids
@@ -129,7 +129,7 @@ void load_languages_from_file(const char* path, bool append)
                      &l->line_comments[l->n_line_comments++];
                     strncpy(r->start, lc->valuestring, MAX_COMMENT_LEN - 1);
                     r->start[MAX_COMMENT_LEN - 1] = '\0';
-                    r->len = (uint8_t) strlen(r->start);
+                    r->len = (uint8_t)strlen(r->start);
                 }
             }
         }
@@ -150,10 +150,10 @@ void load_languages_from_file(const char* path, bool append)
                         strncpy(r->start, start->valuestring,
                          MAX_COMMENT_LEN - 1);
                         r->start[MAX_COMMENT_LEN - 1] = '\0';
-                        r->start_len = (uint8_t) strlen(r->start);
+                        r->start_len = (uint8_t)strlen(r->start);
                         strncpy(r->end, end->valuestring, MAX_COMMENT_LEN - 1);
                         r->end[MAX_COMMENT_LEN - 1] = '\0';
-                        r->end_len = (uint8_t) strlen(r->end);
+                        r->end_len = (uint8_t)strlen(r->end);
                         r->nested = false;
                     }
                 }
@@ -175,12 +175,12 @@ void load_languages_from_file(const char* path, bool append)
                     if (cJSON_IsString(start)) {
                         strncpy(r->start, start->valuestring, 7);
                         r->start[7] = '\0';
-                        r->start_len = (uint8_t) strlen(r->start);
+                        r->start_len = (uint8_t)strlen(r->start);
                     }
                     if (cJSON_IsString(end)) {
                         strncpy(r->end, end->valuestring, 7);
                         r->end[7] = '\0';
-                        r->end_len = (uint8_t) strlen(r->end);
+                        r->end_len = (uint8_t)strlen(r->end);
                     }
                     r->escape = true;
                 }
@@ -199,7 +199,7 @@ void load_languages_from_file(const char* path, bool append)
                     ComplexityRule* r = &l->complexity[l->n_complexity++];
                     strncpy(r->token, cx->valuestring, MAX_COMPLEXITY_LEN - 1);
                     r->token[MAX_COMPLEXITY_LEN - 1] = '\0';
-                    r->len = (uint8_t) strlen(r->token);
+                    r->len = (uint8_t)strlen(r->token);
                 }
             }
         }
@@ -210,12 +210,12 @@ void load_languages_from_file(const char* path, bool append)
 
 static __attribute__((cold)) int ext_entry_cmp(const void* a, const void* b)
 {
-    return strcasecmp(((const ExtEntry*) a)->ext, ((const ExtEntry*) b)->ext);
+    return strcasecmp(((const ExtEntry*)a)->ext, ((const ExtEntry*)b)->ext);
 }
 
 static __attribute__((cold)) int ext_cmp_str(const void* key, const void* entry)
 {
-    return strcasecmp((const char*) key, ((const ExtEntry*) entry)->ext);
+    return strcasecmp((const char*)key, ((const ExtEntry*)entry)->ext);
 }
 
 __attribute__((cold)) void build_lookup_table(void)
@@ -238,7 +238,7 @@ __attribute__((cold)) void build_lookup_table(void)
         }
     }
 
-    qsort(g_ext_table, (size_t) g_n_ext_entries, sizeof(ExtEntry),
+    qsort(g_ext_table, (size_t)g_n_ext_entries, sizeof(ExtEntry),
      ext_entry_cmp);
 }
 
@@ -256,8 +256,8 @@ int find_language(LangLookupParams params)
         search_key = params.ext + 1;
     }
 
-    const ExtEntry* found = (const ExtEntry*) bsearch(search_key, g_ext_table,
-     (size_t) g_n_ext_entries, sizeof(ExtEntry), ext_cmp_str);
+    const ExtEntry* found = (const ExtEntry*)bsearch(search_key, g_ext_table,
+     (size_t)g_n_ext_entries, sizeof(ExtEntry), ext_cmp_str);
 
     return found ? found->lang_idx : -1;
 }
