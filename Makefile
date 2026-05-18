@@ -234,18 +234,31 @@ endif
 # Formatting and Linting
 # ---------------------------------------------------------------------------
 format: format-c format-makefile format-python
+format-ci: format-c-ci format-makefile-ci format-python-ci
 
 format-c:
 	@echo "Formatting C source files"
 	@clang-format -style=file:./.clang-format -i $(SRCS_ALL) $(HDRS)
 
+format-c-ci:
+	@echo "Checking C source file formats"
+	@clang-format --dry-run -style=file:./.clang-format -Werror $(SRCS_ALL) $(HDRS)
+
 format-makefile:
 	@echo "Formatting Makefile"
 	@mbake format --config ./.bake.toml Makefile
 
+format-makefile-ci:
+	@echo "Checking Makefile format"
+	@mbake format --config ./.bake.toml --check Makefile
+
 format-python:
 	@echo "Formatting Python files"
 	@black -q ./assets/**.py
+
+format-python-ci:
+	@echo "Checking Python Format"
+	@black --check ./assets/**.py
 
 lint: lint-c lint-makefile
 

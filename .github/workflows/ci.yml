@@ -14,16 +14,12 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y clang-format clang-tidy libcjson-dev
       - name: Install mbake
         run: pip install mbake --break-system-packages
-      - name: Lint Makefile
-        run: mbake validate Makefile
-      - name: Check Makefile format
-        run: mbake format --check Makefile
-      - name: Check formatting
-        run: |
-          clang-format --version && clang-format --dry-run --style=file:./.clang-format -Werror src/*.c src/*.h src/include/*.c src/include/*.h
-      - name: Run linting
-        run: |
-          make lint
+      - name: Install black formatter
+        run: pip install black --break-system-packages
+      - name: Check all formats
+        run: make format-ci
+      - name: Run full linting
+        run: make lint
 
   build:
     strategy:
