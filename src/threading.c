@@ -163,7 +163,8 @@ bool dq_pop(DirQueue* q, char* path_buf, int* depth)
         return false;
     }
     char* path = q->paths[q->head];
-    strcpy(path_buf, path);
+    strncpy(path_buf, path, PATH_BUF - 1);
+    path_buf[PATH_BUF - 1] = '\0';
     free(path);
     *depth = q->depths[q->head];
     q->head = (q->head + 1) % q->cap;
