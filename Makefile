@@ -233,16 +233,29 @@ endif
 # ---------------------------------------------------------------------------
 # Formatting and Linting
 # ---------------------------------------------------------------------------
-format:
-	@echo "Formatting source files and Makefile..."
+format: format-c format-makefile format-python
+
+format-c:
+	@echo "Formatting C source files"
 	@clang-format -style=file:./.clang-format -i $(SRCS_ALL) $(HDRS)
+
+format-makefile:
+	@echo "Formatting Makefile"
 	@mbake format --config ./.bake.toml Makefile
+
+format-python:
+	@echo "Formatting Python files"
 	@black -q ./assets/**.py
 
-lint:
-	@echo "Running static analysis..."
+lint: lint-c lint-makefile
+
+lint-c:
+	@echo "Running clang-tidy analysis"
 	@clang-tidy -checks=-*,bugprone-*,clang-analyzer-*,performance-* \
-	    $(SRCS_ALL) -- $(CFLAGS)
+	$(SRCS_ALL) -- $(CFLAGS)
+
+lint-makefile:
+	@echo "Running Makefile analysis"
 	@mbake validate --config ./.bake.toml Makefile
 
 # ---------------------------------------------------------------------------
