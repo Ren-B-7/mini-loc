@@ -143,7 +143,7 @@ Options:
 - gitignore/ ignore support
 - Complexity counting for feature parity with `scc`
 - comments.....
-- Changes to threading.c such that threads take more than 1 file from the ring buffer to decrease total lock time and thread contention (might increase time on small directories
+- Changes to threading.c such that threads take more than 1 file from the ring buffer to decrease total lock time and thread contention (might increase time on small directories)
 - Reducing malloc/ calloc calls
 - Performance improvements in fs.c (directory walking)
 - Improvements to output.h, currently the output can get shuffled for long file names
@@ -152,15 +152,10 @@ Options:
 - Splitting large structs to 'hot' and 'cold' structs to ensure structs can be kept in faster caches like L1 and L2 instead of L3
 - Improve branch miss rate
 - Test with hyperfine
-- Test macos and windows support
-- Think of different way to handle symbolic links
-- Handle case sensitive file extensions (.h vs .H)
 - Check support for non-utf8 encoding (Have to debate myself on this one)
 - Compare mmap vs read for a large code base on multi and single thread runs
 - Parrallel make file support
-- Add github actions for formatting and linting checks
 - Add better testing potentially with libfuzzer
-- Add byte counting for files processed, and update output.h to show this count
 
 ## License
 
