@@ -1,7 +1,7 @@
 # Project Name and Directories
 TARGET_NAME = loc
-BUILD_DIR   = build
-BIN_DIR     = bin
+BUILD_DIR = build
+BIN_DIR = bin
 PROFILE_DIR = profiles
 
 # --- OS / Platform Detection ---
@@ -27,7 +27,7 @@ else
 endif
 
 EXECUTABLE_SINGLE = $(BIN_DIR)/$(TARGET_NAME)-single$(EXE_SUFFIX)
-EXECUTABLE_MULTI  = $(BIN_DIR)/$(TARGET_NAME)-multi$(EXE_SUFFIX)
+EXECUTABLE_MULTI = $(BIN_DIR)/$(TARGET_NAME)-multi$(EXE_SUFFIX)
 
 # --- Hardening Toggle ---
 # Allows 'make HARDENED=1' for a hardened build. Defaults to 0 (Disabled).
@@ -36,9 +36,9 @@ HARDENED ?= 0
 # Source and Header files
 SRCS_SHARED = src/include/set.c src/fs.c src/count.c src/cli.c src/languages.c src/languages_data.c
 SRCS_SINGLE = src/mini-loc-single.c
-SRCS_MULTI  = src/mini-loc-multi.c src/threading.c
-SRCS_ALL    = $(SRCS_SINGLE) $(SRCS_MULTI) $(SRCS_SHARED)
-HDRS        = src/include/cli.h src/include/count.h src/include/fs.h \
+SRCS_MULTI = src/mini-loc-multi.c src/threading.c
+SRCS_ALL = $(SRCS_SINGLE) $(SRCS_MULTI) $(SRCS_SHARED)
+HDRS = src/include/cli.h src/include/count.h src/include/fs.h \
               src/include/languages_data.h src/include/languages.h \
               src/include/minicli.h src/include/output.h src/include/set.h \
               src/include/threading.h src/include/types.h
@@ -47,11 +47,11 @@ HDRS        = src/include/cli.h src/include/count.h src/include/fs.h \
 OBJS_COMMON = $(BUILD_DIR)/set.o $(BUILD_DIR)/cli.o $(BUILD_DIR)/count.o \
               $(BUILD_DIR)/fs.o $(BUILD_DIR)/languages.o $(BUILD_DIR)/threading.o \
               $(BUILD_DIR)/languages_data.o
-OBJ_SINGLE  = $(BUILD_DIR)/mini-loc-single.o
-OBJ_MULTI   = $(BUILD_DIR)/mini-loc-multi.o
+OBJ_SINGLE = $(BUILD_DIR)/mini-loc-single.o
+OBJ_MULTI = $(BUILD_DIR)/mini-loc-multi.o
 
 # --- Compiler Detection ---
-CC      = gcc
+CC = gcc
 IS_GCC := $(shell $(CC) -v 2>&1 | grep -q "gcc" && echo 1 || echo 0)
 
 # macOS-specific compiler flag
@@ -113,14 +113,14 @@ else
 endif
 
 # Optimization and PGO
-OPTFLAGS      = -O3 -march=native -flto
-PGO_FLAGS     =
+OPTFLAGS = -O3 -march=native -flto
+PGO_FLAGS =
 PGO_GEN_FLAGS = -fprofile-generate
 PGO_USE_FLAGS = -fprofile-use
 
 ALL_CFLAGS = $(CFLAGS) $(SELECTED_HARDENING_C) $(OPTFLAGS) $(PGO_FLAGS) -pthread
-LD_FLAGS   = $(SELECTED_HARDENING_L) $(PGO_FLAGS)
-LD_LIBS    = $(CJSON_LIB) -lcjson
+LD_FLAGS = $(SELECTED_HARDENING_L) $(PGO_FLAGS)
+LD_LIBS = $(CJSON_LIB) -lcjson
 
 # ---------------------------------------------------------------------------
 # Phony Targets
@@ -201,10 +201,10 @@ pgo-gen: build-json format clean directories
 optimized: clean directories
 	@echo "Building optimized binaries using profile data..."
 	@if [ -d "$(PROFILE_DIR)" ] && ls $(PROFILE_DIR)/*.gcda > /dev/null 2>&1; then \
-	    cp $(PROFILE_DIR)/*.gcda $(BUILD_DIR)/; \
+		cp $(PROFILE_DIR)/*.gcda $(BUILD_DIR)/; \
 	else \
-	    echo "ERROR: No .gcda profile data found in $(PROFILE_DIR)/. Run 'make pgo-gen' first."; \
-	    exit 1; \
+		echo "ERROR: No .gcda profile data found in $(PROFILE_DIR)/. Run 'make pgo-gen' first."; \
+		exit 1; \
 	fi
 	$(MAKE) PGO_FLAGS="$(PGO_USE_FLAGS)" single multi
 
@@ -253,10 +253,10 @@ lint:
 # ---------------------------------------------------------------------------
 check-binaries:
 	@if [ ! -f "$(EXECUTABLE_SINGLE)" ] || [ ! -f "$(EXECUTABLE_MULTI)" ]; then \
-	    echo "ERROR: One or both binaries are missing. Run 'make' first."; \
-	    echo "  Expected: $(EXECUTABLE_SINGLE)"; \
-	    echo "  Expected: $(EXECUTABLE_MULTI)"; \
-	    exit 1; \
+		echo "ERROR: One or both binaries are missing. Run 'make' first."; \
+		echo "  Expected: $(EXECUTABLE_SINGLE)"; \
+		echo "  Expected: $(EXECUTABLE_MULTI)"; \
+		exit 1; \
 	fi
 
 # Interactive prompt — printf + read work in MinGW bash on all platforms.
@@ -264,11 +264,11 @@ install: check-binaries
 	@printf "Install version [1-Multi, 2-Single]: "; \
 	read choice; \
 	if [ "$$choice" = "1" ]; then \
-	    $(MAKE) install-multi; \
+		$(MAKE) install-multi; \
 	elif [ "$$choice" = "2" ]; then \
-	    $(MAKE) install-single; \
+		$(MAKE) install-single; \
 	else \
-	    echo "Invalid choice '$$choice'. Please enter 1 or 2."; exit 1; \
+		echo "Invalid choice '$$choice'. Please enter 1 or 2."; exit 1; \
 	fi
 
 install-multi: check-binaries
