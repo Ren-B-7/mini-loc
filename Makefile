@@ -110,7 +110,8 @@ $(BUILD_DIR)/%.o: src/%.c
 	@echo "Compiling $< (Hardened: $(HARDENED))..."
 	$(CC) $(ALL_CFLAGS) -c $< -o $@
 
-$(BUILD_DIR)/set.o: src/include/set.c
+$(BUILD_DIR)/%.o: src/include/%.c
+	@echo "Compiling $< (Hardened: $(HARDENED))..."
 	$(CC) $(ALL_CFLAGS) -c $< -o $@
 
 # Linking Rules
