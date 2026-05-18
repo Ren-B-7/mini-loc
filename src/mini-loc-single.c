@@ -1,8 +1,9 @@
+#include <dirent.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 
-/* Compiler attribute compat */
 #if defined(__GNUC__) || defined(__clang__)
 #define COLD_ATTR __attribute__((cold))
 #else
@@ -43,11 +44,65 @@ static void process_file_cb(const char* path, size_t size, void* user)
     if (li == -1 && !g_cfg.list_unknown) {
         return;
     }
+
     FileResult* fr = &g_files[g_n_files++];
     fr->path = g_cfg.show_files ? strdup(path) : NULL;
     fr->ext = (g_cfg.show_files && ext) ? strdup(ext) : NULL;
     fr->lang_idx = li;
     fr->counts = count_file(path, li);
+}
+
+static void walk_dir_recursive(const char* path, size_t path_len, bool recurse)
+{
+    DIR* d = opendir(path);
+    if (!d) {
+        return;
+    }
+
+    char sub[PATH_BUF];
+    memcpy(sub, path, path_len);
+    sub[path_len] = '/';
+
+    struct dirent* entry;
+    while ((entry = readdir(d))) {
+        if (entry->d_name[0] == '.') {
+            continue;
+        }
+        size_t nlen = strlen(entry->d_name);
+        if (path_len + 1 + nlen >= PATH_BUF) {
+            continue;
+        }
+        memcpy(sub + path_len + 1, entry->d_name, nlen + 1);
+
+        struct stat st;
+        if (stat(sub, &st) != 0) {
+            continue;
+        }
+        if (S_ISREG(st.st_mode)) {
+            process_file_cb(sub, (size_t)st.st_size, NULL);
+        } else if (S_ISDIR(st.st_mode) && recurse) {
+            walk_dir_recursive(sub, path_len + 1 + nlen, recurse);
+        }
+    }
+    closedir(d);
+}
+
+static void single_process_path(const char* path, bool recurse)
+{
+    struct stat st;
+    if (stat(path, &st) != 0) {
+        return;
+    }
+    if (S_ISDIR(st.st_mode)) {
+        if (recurse) {
+            walk_dir_recursive(path, strlen(path), recurse);
+        } else {
+            fprintf(stderr,
+             "mini-loc: '%s' is a directory (use -r to recurse)\n", path);
+        }
+    } else if (S_ISREG(st.st_mode)) {
+        process_file_cb(path, (size_t)st.st_size, NULL);
+    }
 }
 
 COLD_ATTR int main(int argc, char** argv)
@@ -77,12 +132,13 @@ COLD_ATTR int main(int argc, char** argv)
             }
             continue;
         }
-        process_path(argv[i], g_cfg.recurse, process_file_cb, NULL);
+        single_process_path(argv[i], g_cfg.recurse);
         any_path = true;
     }
     if (!any_path) {
-        process_path(".", g_cfg.recurse, process_file_cb, NULL);
+        single_process_path(".", g_cfg.recurse);
     }
+
     loc_print_report(g_cfg.output_fmt, g_files, g_n_files, g_langs, g_n_langs,
      (LocOutputParams){g_cfg.show_files, g_cfg.verbose, g_cfg.no_bytes,
          g_cfg.total_bytes, g_cfg.sort_order});

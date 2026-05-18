@@ -44,49 +44,60 @@ static inline long get_nproc_win32(void)
 
 static LocConfig g_cfg;
 
-static void queue_push_cb(const char* path, size_t size, void* user)
+typedef struct {
+    DirQueue* dq;
+    WorkQueue* wq;
+    size_t* total_bytes;
+    bool recurse;
+} WalkerState;
+
+static void* walker(void* arg)
 {
-    g_cfg.total_bytes += size;
-    WorkQueue* q = (WorkQueue*)user;
-    wq_push(q, strdup(path));
+    WalkerState* ws = (WalkerState*)arg;
+    walk_dir_task(ws->dq, ws->wq, ws->total_bytes, ws->recurse);
+    return NULL;
 }
 
 static void* worker(void* arg)
 {
     ThreadState* ts = (ThreadState*)arg;
+    char* batch[64];
     while (true) {
-        char* path = wq_pop(ts->queue);
-        if (!path) {
+        int n_popped = wq_pop_batch(ts->queue, batch, 64);
+        if (n_popped == 0) {
             break;
         }
-        const char* ext = strrchr(path, '.');
-        int li = find_language((LangLookupParams){path, ext});
-        if (li == -1) {
-            li = find_language((LangLookupParams){path, NULL});
-        }
-        if (li == -1 && !g_cfg.list_unknown) {
-            free(path);
-            continue;
-        }
-        if (ts->n_files >= ts->capacity) {
-            size_t new_capacity =
-             ts->capacity == 0 ? 1024 : (size_t)ts->capacity * 2;
-            FileResult* new_files =
-             realloc(ts->files, sizeof(FileResult) * new_capacity);
-            if (!new_files) {
-                free(ts->files);
-                return NULL;
+        for (int i = 0; i < n_popped; i++) {
+            char* path = batch[i];
+            const char* ext = strrchr(path, '.');
+            int li = find_language((LangLookupParams){path, ext});
+            if (li == -1) {
+                li = find_language((LangLookupParams){path, NULL});
             }
-            ts->files = new_files;
-            ts->capacity = (int)new_capacity;
-        }
-        FileResult* fr = &ts->files[ts->n_files++];
-        fr->lang_idx = li;
-        fr->counts = count_file(path, li);
-        fr->path = g_cfg.show_files ? path : NULL;
-        fr->ext = (g_cfg.show_files && ext) ? strdup(ext) : NULL;
-        if (!g_cfg.show_files) {
-            free(path);
+            if (li == -1 && !g_cfg.list_unknown) {
+                free(path);
+                continue;
+            }
+            if (ts->n_files >= ts->capacity) {
+                size_t new_capacity =
+                 ts->capacity == 0 ? 1024 : (size_t)ts->capacity * 2;
+                FileResult* new_files =
+                 realloc(ts->files, sizeof(FileResult) * new_capacity);
+                if (!new_files) {
+                    free(ts->files);
+                    return NULL;
+                }
+                ts->files = new_files;
+                ts->capacity = (int)new_capacity;
+            }
+            FileResult* fr = &ts->files[ts->n_files++];
+            fr->lang_idx = li;
+            fr->counts = count_file(path, li);
+            fr->path = g_cfg.show_files ? path : NULL;
+            fr->ext = (g_cfg.show_files && ext) ? strdup(ext) : NULL;
+            if (!g_cfg.show_files) {
+                free(path);
+            }
         }
     }
     return NULL;
@@ -96,19 +107,20 @@ COLD_ATTR int main(int argc, char** argv)
 {
     loc_config_init(&g_cfg);
     parse_cli(&g_cfg, argc, argv);
-
     load_languages();
-
     if (g_cfg.lang_load_path) {
         load_languages_from_file(g_cfg.lang_load_path, false);
     }
     if (g_cfg.lang_append_path) {
         load_languages_from_file(g_cfg.lang_append_path, true);
     }
-
     build_lookup_table();
-    WorkQueue queue;
-    wq_init(&queue, QUEUE_INIT_CAP);
+
+    WorkQueue wq;
+    wq_init(&wq, QUEUE_INIT_CAP);
+    DirQueue dq;
+    dq_init(&dq, 1024);
+
     long nproc = GET_NPROC();
     if (nproc < 1) {
         nproc = 1;
@@ -116,16 +128,32 @@ COLD_ATTR int main(int argc, char** argv)
     if (nproc > MAX_THREADS) {
         nproc = MAX_THREADS;
     }
+
     int n_threads = (int)nproc;
-    pthread_t threads[MAX_THREADS];
-    ThreadState states[MAX_THREADS];
+    pthread_t worker_threads[MAX_THREADS];
+    ThreadState worker_states[MAX_THREADS];
     for (int i = 0; i < n_threads; i++) {
-        states[i].queue = &queue;
-        states[i].files = malloc(sizeof(FileResult) * LOCAL_INIT_CAP);
-        states[i].n_files = 0;
-        states[i].capacity = LOCAL_INIT_CAP;
-        pthread_create(&threads[i], NULL, worker, &states[i]);
+        worker_states[i].queue = &wq;
+        worker_states[i].files = malloc(sizeof(FileResult) * LOCAL_INIT_CAP);
+        worker_states[i].n_files = 0;
+        worker_states[i].capacity = LOCAL_INIT_CAP;
+        pthread_create(&worker_threads[i], NULL, worker, &worker_states[i]);
     }
+
+    int n_walkers = n_threads / 4;
+    if (n_walkers < 1) {
+        n_walkers = 1;
+    }
+    if (n_walkers > 4) {
+        n_walkers = 4;
+    }
+
+    WalkerState ws = {&dq, &wq, &g_cfg.total_bytes, g_cfg.recurse};
+    pthread_t walker_threads[4];
+    for (int i = 0; i < n_walkers; i++) {
+        pthread_create(&walker_threads[i], NULL, walker, &ws);
+    }
+
     bool any_path = false;
     for (int i = 1; i < argc; i++) {
         if (argv[i][0] == '-') {
@@ -138,25 +166,32 @@ COLD_ATTR int main(int argc, char** argv)
             }
             continue;
         }
-        process_path(argv[i], g_cfg.recurse, queue_push_cb, &queue);
+        process_path(argv[i], g_cfg.recurse, &wq, &dq);
         any_path = true;
     }
     if (!any_path) {
-        process_path(".", g_cfg.recurse, queue_push_cb, &queue);
+        process_path(".", g_cfg.recurse, &wq, &dq);
     }
-    wq_finish(&queue);
+
+    dq_finish(&dq);
+    for (int i = 0; i < n_walkers; i++) {
+        pthread_join(walker_threads[i], NULL);
+    }
+    wq_finish(&wq);
+
     int total_files = 0;
     for (int i = 0; i < n_threads; i++) {
-        pthread_join(threads[i], NULL);
-        total_files += states[i].n_files;
+        pthread_join(worker_threads[i], NULL);
+        total_files += worker_states[i].n_files;
     }
+
     FileResult* all_files = malloc(sizeof(FileResult) * (size_t)total_files);
     int offset = 0;
     for (int i = 0; i < n_threads; i++) {
-        memcpy(&all_files[offset], states[i].files,
-         sizeof(FileResult) * (size_t)states[i].n_files);
-        offset += states[i].n_files;
-        free(states[i].files);
+        memcpy(&all_files[offset], worker_states[i].files,
+         sizeof(FileResult) * (size_t)worker_states[i].n_files);
+        offset += worker_states[i].n_files;
+        free(worker_states[i].files);
     }
     loc_print_report(g_cfg.output_fmt, all_files, total_files, g_langs,
      g_n_langs,
@@ -168,6 +203,7 @@ COLD_ATTR int main(int argc, char** argv)
         }
         free(all_files);
     }
-    wq_destroy(&queue);
+    wq_destroy(&wq);
+    dq_destroy(&dq);
     return 0;
 }

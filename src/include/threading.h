@@ -41,6 +41,19 @@ typedef struct {
 } WorkQueue;
 
 typedef struct {
+    char** paths;
+    int* depths;
+    size_t cap;
+    size_t head;
+    size_t tail;
+    size_t count;
+    bool finished;
+    pthread_mutex_t lock;
+    pthread_cond_t not_empty;
+    pthread_cond_t not_full;
+} DirQueue;
+
+typedef struct {
     WorkQueue* queue;
     FileResult* files;
     int n_files;
@@ -50,7 +63,14 @@ typedef struct {
 int wq_init(WorkQueue* q, size_t initial_cap);
 void wq_push(WorkQueue* q, char* path);
 char* wq_pop(WorkQueue* q);
+int wq_pop_batch(WorkQueue* q, char** batch, int batch_size);
 void wq_finish(WorkQueue* q);
 void wq_destroy(WorkQueue* q);
+
+int dq_init(DirQueue* q, size_t initial_cap);
+void dq_push(DirQueue* q, const char* path, int depth);
+bool dq_pop(DirQueue* q, char* path_buf, int* depth);
+void dq_finish(DirQueue* q);
+void dq_destroy(DirQueue* q);
 
 #endif
