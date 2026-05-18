@@ -125,8 +125,8 @@ LD_LIBS = $(CJSON_LIB) -lcjson
 # ---------------------------------------------------------------------------
 # Phony Targets
 # ---------------------------------------------------------------------------
-.PHONY: all clean format lint check directories install uninstall \
-        build-json single multi pgo-gen optimized install-multi bench \
+.PHONY: all clean format format-ci lint check directories install uninstall \
+        build-json build-json-force single multi pgo-gen optimized install-multi bench \
         install-single default check-binaries check-tools
 
 default: directories single multi
@@ -180,9 +180,15 @@ multi: $(OBJ_MULTI) $(OBJS_COMMON)
 # ---------------------------------------------------------------------------
 # Code Generation
 # ---------------------------------------------------------------------------
-build-json: src/include/languages_data.h
+build-json: src/include/languages_data.h src/languages_data.c
+
+build-json-force: assets/languages.json assets/convert_langs.py
+	@$(PYTHON) ./assets/convert_langs.py
 
 src/include/languages_data.h: assets/languages.json assets/convert_langs.py
+	@$(PYTHON) ./assets/convert_langs.py
+
+src/languages_data.c: assets/languages.json assets/convert_langs.py
 	@$(PYTHON) ./assets/convert_langs.py
 
 # ---------------------------------------------------------------------------
