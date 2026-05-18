@@ -144,7 +144,7 @@ format:
 lint:
 	@echo "Running analysis..."
 	@clang-tidy -checks=-*,bugprone-*,clang-analyzer-*,performance-* $(SRCS_ALL) -- $(CFLAGS)
-	mbake validate --config ./.bake.toml Makefile
+	@mbake validate --config ./.bake.toml Makefile
 
 # Installation
 INSTALL_DIR = $(HOME)/.local/bin
