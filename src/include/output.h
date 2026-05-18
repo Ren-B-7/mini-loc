@@ -762,11 +762,12 @@ static void loc_print_terminal(FileResult* files_v, int n_files,
 
     char separator[512];
     int sep_len = max_lang_width + 65;
-    for (int i = 0; i < sep_len && i < 511; i++) {
+    for (int i = 0; i < sep_len && i < (512 - 1); i++) {
         separator[i] = '-';
     }
     separator[511] = '\0';
-    printf("%s\n", separator);
+    printf("%s", separator);
+    printf("\n");
 
     for (int i = 0; i < n_sums; i++) {
         uint64_t total = (uint64_t)sums[i].counts.code +
