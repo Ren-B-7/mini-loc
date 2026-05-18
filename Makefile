@@ -125,7 +125,7 @@ LD_LIBS = $(CJSON_LIB) -lcjson
 # ---------------------------------------------------------------------------
 # Phony Targets
 # ---------------------------------------------------------------------------
-.PHONY: all clean format format-ci lint check directories install uninstall \
+.PHONY: all clean format format-c format-python format-makefile format-ci lint lint-c lint-makefile check directories install uninstall \
         build-json build-json-force single multi pgo-gen optimized install-multi bench \
         install-single default check-binaries check-tools
 
