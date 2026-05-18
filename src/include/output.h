@@ -74,7 +74,7 @@ static __attribute__((cold)) void loc_print_html(const FileResult* files,
  int n_files, const Language* langs, int n_langs, LocOutputParams params);
 static __attribute__((cold)) void loc_print_sql(const FileResult* files,
  int n_files, const Language* langs, int n_langs, LocOutputParams params);
-static inline __attribute__((cold)) void loc_print_terminal(FileResult* files,
+static __attribute__((cold)) void loc_print_terminal(FileResult* files,
  int n_files, const Language* langs, int n_langs, LocOutputParams params);
 
 /* Internal helpers */
@@ -679,7 +679,7 @@ static void loc_print_sql(const FileResult* files_v, int n_files,
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
-static inline void loc_print_terminal(FileResult* files_v, int n_files,
+static void loc_print_terminal(FileResult* files_v, int n_files,
  const Language* langs_v, int n_langs, LocOutputParams params)
 {
 #define MAX_SUMS_TERM 1024
@@ -745,10 +745,28 @@ static inline void loc_print_terminal(FileResult* files_v, int n_files,
 
     printf("\n%sLanguage Summary%s\n\n", LOC_TERM_CYAN, LOC_TERM_RESET);
 
-    printf("%-30s %7s %10s %7s %10s %10s %10s\n", "Language", "Files", "Code",
-     "Pct", "Comment", "Blank", "Total");
-    printf("-------------------------------------------------------------------"
-           "-----------------------\n");
+    int max_lang_width = 8;
+    for (int i = 0; i < n_sums; i++) {
+        const char* name =
+         (sums[i].lang_idx >= 0 && sums[i].lang_idx < n_langs) ?
+         (langs_v + sums[i].lang_idx)->name :
+         "(unknown)";
+        int len = (int)strlen(name);
+        if (len > max_lang_width) {
+            max_lang_width = len;
+        }
+    }
+
+    printf("%-*s %7s %10s %7s %10s %10s %10s\n", max_lang_width, "Language",
+     "Files", "Code", "Pct", "Comment", "Blank", "Total");
+
+    char separator[512];
+    int sep_len = max_lang_width + 65;
+    for (int i = 0; i < sep_len && i < 511; i++) {
+        separator[i] = '-';
+    }
+    separator[511] = '\0';
+    printf("%s\n", separator);
 
     for (int i = 0; i < n_sums; i++) {
         uint64_t total = (uint64_t)sums[i].counts.code +
@@ -764,22 +782,22 @@ static inline void loc_print_terminal(FileResult* files_v, int n_files,
          "(unknown)";
 
         printf(
-         "%-30s %7d "
+         "%-*s %7d "
          "%s%10" PRIu32 "%s "
          "%6.1f%% "
          "%s%10" PRIu32 "%s "
          "%s%10" PRIu32 "%s "
          "%10" PRIu64 "\n",
-         name, sums[i].files, LOC_TERM_GREEN, sums[i].counts.code,
-         LOC_TERM_RESET, pct, LOC_TERM_YELLOW, sums[i].counts.comment,
-         LOC_TERM_RESET, LOC_TERM_GRAY, sums[i].counts.blank, LOC_TERM_RESET,
-         total);
+         max_lang_width, name, sums[i].files, LOC_TERM_GREEN,
+         sums[i].counts.code, LOC_TERM_RESET, pct, LOC_TERM_YELLOW,
+         sums[i].counts.comment, LOC_TERM_RESET, LOC_TERM_GRAY,
+         sums[i].counts.blank, LOC_TERM_RESET, total);
     }
-    printf("-------------------------------------------------------------------"
-           "-----------------------\n");
-    printf("%-30s %7" PRIu64 " %10" PRIu64 " %6.1f%% %10" PRIu64 " %10" PRIu64
+    printf("%s\n", separator);
+    printf("%-*s %7" PRIu64 " %10" PRIu64 " %6.1f%% %10" PRIu64 " %10" PRIu64
            " %10" PRIu64 "\n\n",
-     "TOTAL", t_files, t_code, 100.0, t_comment, t_blank, grand_total);
+     max_lang_width, "TOTAL", t_files, t_code, 100.0, t_comment, t_blank,
+     grand_total);
 
     printf("Breakdown: %s Code %3.1f%% %s|%s Comment %3.1f%% %s|%s Blank "
            "%3.1f%%%s",
