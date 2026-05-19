@@ -99,20 +99,18 @@ typedef struct {
     uint8_t _pad; /* always 0xFF */
 } FirstCharEntry;
 
-static FirstCharEntry g_dispatch[256];
-
-static void build_dispatch_table(Language* lang)
+static void build_dispatch_table(Language* lang, FirstCharEntry* dispatch)
 {
-    memset(g_dispatch, 0xFF, sizeof(g_dispatch));
+    memset(dispatch, 0xFF, sizeof(FirstCharEntry) * 256);
     for (int i = 0; i < lang->n_quotes; i++) {
-        g_dispatch[(uint8_t)lang->quotes[i].start[0]].quote_idx = (uint8_t)i;
+        dispatch[(uint8_t)lang->quotes[i].start[0]].quote_idx = (uint8_t)i;
     }
     for (int i = 0; i < lang->n_line_comments; i++) {
-        g_dispatch[(uint8_t)lang->line_comments[i].start[0]].line_comment_idx =
+        dispatch[(uint8_t)lang->line_comments[i].start[0]].line_comment_idx =
          (uint8_t)i;
     }
     for (int i = 0; i < lang->n_multi_line; i++) {
-        g_dispatch[(uint8_t)lang->multi_line[i].start[0]].block_comment_idx =
+        dispatch[(uint8_t)lang->multi_line[i].start[0]].block_comment_idx =
          (uint8_t)i;
     }
 }
@@ -222,7 +220,8 @@ Counts count_file(const char* path, int lang_idx)
         return c;
     }
 
-    build_dispatch_table(lang);
+    FirstCharEntry dispatch[256];
+    build_dispatch_table(lang, dispatch);
 
     Scanner s = {0};
 
@@ -256,7 +255,7 @@ Counts count_file(const char* path, int lang_idx)
                 break;
             }
 
-            FirstCharEntry* e = &g_dispatch[ch];
+            FirstCharEntry* e = &dispatch[ch];
 
             /*
              * Merged fast-reject: read all three indices as a uint32_t and
