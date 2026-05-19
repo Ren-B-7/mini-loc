@@ -80,6 +80,14 @@ static int cb_filter(int argc, char** argv, void* user_data)
     return 0;
 }
 
+static int cb_complexity(int argc, char** argv, void* user_data)
+{
+    (void)argc;
+    (void)argv;
+    ((LocConfig*)user_data)->complexity_check = true;
+    return 0;
+}
+
 static int cb_sort(int argc, char** argv, void* user_data)
 {
     if (argc > 0) {
@@ -129,6 +137,9 @@ __attribute__((cold)) void parse_cli(LocConfig* cfg, int argc, char** argv)
          "--recurse", "-r", "Recurse into directories", cb_recurse, cfg});
     cli_add_argument(&parser,
      (CliArgument){"--files", "-f", "Show per-file results", cb_files, cfg});
+    cli_add_argument(&parser,
+     (CliArgument){"--complexity", NULL, "Perform complexity checks",
+         cb_complexity, cfg});
     cli_add_argument(&parser,
      (CliArgument){
          "--no-bytes", NULL, "Do not show bytes processed", cb_no_bytes, cfg});

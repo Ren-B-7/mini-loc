@@ -10,6 +10,7 @@ typedef struct {
     bool show_files;
     bool list_unknown;
     bool verbose;
+    bool complexity_check;
 
     char* filter;
     char* lang_load_path;
