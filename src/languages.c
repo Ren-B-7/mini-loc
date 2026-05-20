@@ -13,6 +13,17 @@
 
 Language g_langs[MAX_LANGS];
 int g_n_langs = 0;
+uint32_t g_complexity_starts[MAX_LANGS][8];
+
+static void populate_complexity_table(int lang_idx)
+{
+    Language* l = &g_langs[lang_idx];
+    memset(g_complexity_starts[lang_idx], 0, sizeof(uint32_t) * 8);
+    for (int i = 0; i < l->n_complexity; i++) {
+        unsigned char ch = (unsigned char)l->complexity[i].token[0];
+        g_complexity_starts[lang_idx][ch >> 5] |= (1u << (ch & 0x1F));
+    }
+}
 
 static ExtEntry g_ext_table[MAX_LANGS * MAX_EXTENSIONS];
 static int g_n_ext_entries = 0;
@@ -23,6 +34,7 @@ void load_languages(void)
 
     for (int i = 0; i < g_n_langs_data && i < MAX_LANGS; i++) {
         g_langs[g_n_langs++] = g_langs_data[i];
+        populate_complexity_table(g_n_langs - 1);
     }
 }
 
@@ -203,6 +215,7 @@ void load_languages_from_file(const char* path, bool append)
                 }
             }
         }
+        populate_complexity_table(g_n_langs - 1);
     }
 
     cJSON_Delete(root);

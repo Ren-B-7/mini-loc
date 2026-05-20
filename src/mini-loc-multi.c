@@ -43,6 +43,7 @@ static inline long get_nproc_win32(void)
 #include "include/types.h"
 
 static LocConfig g_cfg;
+static CountFn g_count_fn = NULL;
 
 typedef struct {
     DirQueue* dq;
@@ -92,7 +93,7 @@ static void* worker(void* arg)
             }
             FileResult* fr = &ts->files[ts->n_files++];
             fr->lang_idx = li;
-            fr->counts = count_file(path, li);
+            fr->counts = g_count_fn(path, li);
             fr->path = g_cfg.show_files ? path : NULL;
             fr->ext = (g_cfg.show_files && ext) ? strdup(ext) : NULL;
             if (!g_cfg.show_files) {
@@ -107,6 +108,9 @@ COLD_ATTR int main(int argc, char** argv)
 {
     loc_config_init(&g_cfg);
     parse_cli(&g_cfg, argc, argv);
+
+    g_count_fn = g_cfg.complexity_check ? count_file_complexity : count_file;
+
     load_languages();
     if (g_cfg.lang_load_path) {
         load_languages_from_file(g_cfg.lang_load_path, false);
@@ -196,7 +200,7 @@ COLD_ATTR int main(int argc, char** argv)
     loc_print_report(g_cfg.output_fmt, all_files, total_files, g_langs,
      g_n_langs,
      (LocOutputParams){g_cfg.show_files, g_cfg.verbose, g_cfg.no_bytes,
-         g_cfg.total_bytes, g_cfg.sort_order});
+         g_cfg.complexity_check, g_cfg.total_bytes, g_cfg.sort_order});
     if (all_files) {
         for (int i = 0; i < total_files; i++) {
             free(all_files[i].path);

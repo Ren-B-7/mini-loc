@@ -14,6 +14,7 @@
  */
 extern Language g_langs[MAX_LANGS];
 extern int g_n_langs;
+extern uint32_t g_complexity_starts[MAX_LANGS][8];
 
 /*
  * Load language definitions from embedded static data.

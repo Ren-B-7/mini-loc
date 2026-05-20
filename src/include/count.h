@@ -4,5 +4,6 @@
 #include "types.h"
 
 Counts count_file(const char* path, int lang_idx);
+Counts count_file_complexity(const char* path, int lang_idx);
 
 #endif

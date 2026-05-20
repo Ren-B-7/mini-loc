@@ -85,7 +85,7 @@ static __attribute__((cold)) void loc_print_terminal(FileResult* files,
 
 static __attribute__((cold)) int loc__build_sums(const FileResult* files_v,
  LocSumParams params, LocLangSum* out_sums, uint64_t* t_files, uint64_t* t_code,
- uint64_t* t_comm, uint64_t* t_blank);
+ uint64_t* t_comm, uint64_t* t_blank, uint64_t* t_complexity);
 
 static LocSortOrder g_sort_order = LOC_SORT_TOTAL;
 
@@ -264,11 +264,12 @@ static inline __attribute__((cold)) void loc__iso8601_now(char* buf, size_t len)
 #define LOC_TERM_GREEN "\033[32m"
 #define LOC_TERM_YELLOW "\033[33m"
 #define LOC_TERM_GRAY "\033[90m"
+#define LOC_TERM_MAGENTA "\033[35m"
 
 /* Build summary table */
-static int loc__build_sums(const FileResult* files_v, LocSumParams params,
- LocLangSum* out_sums, uint64_t* t_files, uint64_t* t_code, uint64_t* t_comm,
- uint64_t* t_blank)
+static __attribute__((cold)) int loc__build_sums(const FileResult* files_v,
+ LocSumParams params, LocLangSum* out_sums, uint64_t* t_files, uint64_t* t_code,
+ uint64_t* t_comm, uint64_t* t_blank, uint64_t* t_complexity)
 {
     /* lang_to_sum_idx maps (lang_idx+1) → position in out_sums.
      * Using a stack array since MAX_LANGS is small. */
@@ -283,7 +284,7 @@ static int loc__build_sums(const FileResult* files_v, LocSumParams params,
     }
 
     int n_sums = 0;
-    *t_files = *t_code = *t_comm = *t_blank = 0;
+    *t_files = *t_code = *t_comm = *t_blank = *t_complexity = 0;
 
     for (int i = 0; i < params.num_files; i++) {
         int li = (files_v + i)->lang_idx;
@@ -303,12 +304,14 @@ static int loc__build_sums(const FileResult* files_v, LocSumParams params,
             out_sums[found].counts.code = 0;
             out_sums[found].counts.comment = 0;
             out_sums[found].counts.blank = 0;
+            out_sums[found].counts.complexity = 0;
             lang_to_sum[map_idx] = found;
         }
         out_sums[found].files++;
         out_sums[found].counts.code += (files_v + i)->counts.code;
         out_sums[found].counts.comment += (files_v + i)->counts.comment;
         out_sums[found].counts.blank += (files_v + i)->counts.blank;
+        out_sums[found].counts.complexity += (files_v + i)->counts.complexity;
     }
 
     g_sort_order = params.sort_order;
@@ -319,6 +322,7 @@ static int loc__build_sums(const FileResult* files_v, LocSumParams params,
         *t_code += out_sums[i].counts.code;
         *t_comm += out_sums[i].counts.comment;
         *t_blank += out_sums[i].counts.blank;
+        *t_complexity += out_sums[i].counts.complexity;
     }
     return n_sums;
 }
@@ -332,11 +336,11 @@ static void loc_print_json(const FileResult* files_v, int n_files,
 {
 #define MAX_SUMS_JSON 1024
     LocLangSum sums[MAX_SUMS_JSON];
-    uint64_t t_files = 0, t_code = 0, t_comm = 0, t_blank = 0;
+    uint64_t t_files = 0, t_code = 0, t_comm = 0, t_blank = 0, t_complexity = 0;
 
     int n_sums = loc__build_sums(files_v,
      (LocSumParams){n_files, n_langs, MAX_SUMS_JSON, params.sort_order}, sums,
-     &t_files, &t_code, &t_comm, &t_blank);
+     &t_files, &t_code, &t_comm, &t_blank, &t_complexity);
     uint64_t grand_total = t_code + t_comm + t_blank;
 
     char esc[1024];
@@ -360,12 +364,17 @@ static void loc_print_json(const FileResult* files_v, int n_files,
          "      \"files\": %d,\n"
          "      \"code\": %" PRIu32 ",\n"
          "      \"comment\": %" PRIu32 ",\n"
-         "      \"blank\": %" PRIu32 ",\n"
-         "      \"total\": %" PRIu64 ",\n"
-         "      \"pct\": %.2f\n"
-         "    }%s\n",
+         "      \"blank\": %" PRIu32 ",\n",
          esc, sums[i].files, sums[i].counts.code, sums[i].counts.comment,
-         sums[i].counts.blank, total, pct, (i < n_sums - 1) ? "," : "");
+         sums[i].counts.blank);
+        if (params.show_complexity) {
+            printf("      \"complexity\": %" PRIu32 ",\n",
+             sums[i].counts.complexity);
+        }
+        printf("      \"total\": %" PRIu64 ",\n"
+               "      \"pct\": %.2f\n"
+               "    }%s\n",
+         total, pct, (i < n_sums - 1) ? "," : "");
     }
     printf("  ],\n");
 
@@ -375,9 +384,12 @@ static void loc_print_json(const FileResult* files_v, int n_files,
      "    \"files\": %" PRIu64 ",\n"
      "    \"code\": %" PRIu64 ",\n"
      "    \"comment\": %" PRIu64 ",\n"
-     "    \"blank\": %" PRIu64 ",\n"
-     "    \"total lines\": %" PRIu64 "",
-     t_files, t_code, t_comm, t_blank, grand_total);
+     "    \"blank\": %" PRIu64 ",\n",
+     t_files, t_code, t_comm, t_blank);
+    if (params.show_complexity) {
+        printf("    \"complexity\": %" PRIu64 ",\n", t_complexity);
+    }
+    printf("    \"total lines\": %" PRIu64 "", grand_total);
     if (!params.no_bytes) {
         printf(",\n    \"bytes\": %zu", params.total_bytes);
     }
@@ -400,6 +412,7 @@ static void loc_print_json(const FileResult* files_v, int n_files,
             uint32_t code = (files_v + i)->counts.code;
             uint32_t comment = (files_v + i)->counts.comment;
             uint32_t blank = (files_v + i)->counts.blank;
+            uint32_t complexity = (files_v + i)->counts.complexity;
             uint32_t total = code + comment + blank;
 
             printf(
@@ -409,11 +422,14 @@ static void loc_print_json(const FileResult* files_v, int n_files,
              "      \"language\": \"%s\",\n"
              "      \"code\": %" PRIu32 ",\n"
              "      \"comment\": %" PRIu32 ",\n"
-             "      \"blank\": %" PRIu32 ",\n"
-             "      \"total\": %" PRIu32 "\n"
-             "    }%s\n",
-             esc_path, ext ? ext : "", esc_lang, code, comment, blank, total,
-             (i < n_files - 1) ? "," : "");
+             "      \"blank\": %" PRIu32 ",\n",
+             esc_path, ext ? ext : "", esc_lang, code, comment, blank);
+            if (params.show_complexity) {
+                printf("      \"complexity\": %" PRIu32 ",\n", complexity);
+            }
+            printf("      \"total\": %" PRIu32 "\n"
+                   "    }%s\n",
+             total, (i < n_files - 1) ? "," : "");
         }
         printf("  ]");
     }
@@ -441,10 +457,11 @@ static void loc_print_html(const FileResult* files_v, int n_files,
     uint64_t t_code = 0;
     uint64_t t_comment = 0;
     uint64_t t_blank = 0;
+    uint64_t t_complexity = 0;
 
     int n_sums = loc__build_sums(files_v,
      (LocSumParams){n_files, n_langs, MAX_SUMS_HTML, params.sort_order}, sums,
-     &t_files, &t_code, &t_comment, &t_blank);
+     &t_files, &t_code, &t_comment, &t_blank, &t_complexity);
 
     uint64_t grand_total = t_code + t_comment + t_blank;
 
@@ -460,13 +477,16 @@ static void loc_print_html(const FileResult* files_v, int n_files,
      "<th>Files</th>\n"
      "<th>Code</th>\n"
      "<th>Comment</th>\n"
-     "<th>Blank</th>\n"
+     "<th>Blank</th>\n");
+    if (params.show_complexity) {
+        printf("<th>Complexity</th>\n");
+    }
+    printf(
      "<th>Total</th>\n"
      "<th>%%</th>\n"
      "</tr>\n"
      "</thead>\n"
      "<tbody>\n");
-
     for (int i = 0; i < n_sums; i++) {
         const char* name = (sums[i].lang_idx == -1) ?
          "(unknown)" :
@@ -487,12 +507,16 @@ static void loc_print_html(const FileResult* files_v, int n_files,
          "<td>%d</td>"
          "<td>%" PRIu32 "</td>"
          "<td>%" PRIu32 "</td>"
-         "<td>%" PRIu32 "</td>"
-         "<td>%" PRIu64 "</td>"
-         "<td>%.1f</td>"
-         "</tr>\n",
+         "<td>%" PRIu32 "</td>",
          esc, sums[i].files, sums[i].counts.code, sums[i].counts.comment,
-         sums[i].counts.blank, total, pct);
+         sums[i].counts.blank);
+        if (params.show_complexity) {
+            printf("<td>%" PRIu32 "</td>", sums[i].counts.complexity);
+        }
+        printf("<td>%" PRIu64 "</td>"
+               "<td>%.1f</td>"
+               "</tr>\n",
+         total, pct);
     }
 
     printf(
@@ -501,11 +525,15 @@ static void loc_print_html(const FileResult* files_v, int n_files,
      "<td><b>%" PRIu64 "</b></td>"
      "<td><b>%" PRIu64 "</b></td>"
      "<td><b>%" PRIu64 "</b></td>"
-     "<td><b>%" PRIu64 "</b></td>"
-     "<td><b>%" PRIu64 "</b></td>"
-     "<td><b>100.0</b></td>"
-     "</tr>\n",
-     t_files, t_code, t_comment, t_blank, grand_total);
+     "<td><b>%" PRIu64 "</b></td>",
+     t_files, t_code, t_comment, t_blank);
+    if (params.show_complexity) {
+        printf("<td><b>%" PRIu64 "</b></td>", t_complexity);
+    }
+    printf("<td><b>%" PRIu64 "</b></td>"
+           "<td><b>100.0</b></td>"
+           "</tr>\n",
+     grand_total);
 
     if (!params.no_bytes) {
         printf(
@@ -527,7 +555,11 @@ static void loc_print_html(const FileResult* files_v, int n_files,
          "<th>Path</th>\n"
          "<th>Code</th>\n"
          "<th>Comment</th>\n"
-         "<th>Blank</th>\n"
+         "<th>Blank</th>\n");
+        if (params.show_complexity) {
+            printf("<th>Complexity</th>\n");
+        }
+        printf(
          "<th>Total</th>\n"
          "</tr>\n"
          "</thead>\n"
@@ -539,6 +571,7 @@ static void loc_print_html(const FileResult* files_v, int n_files,
             uint32_t code = (files_v + i)->counts.code;
             uint32_t comment = (files_v + i)->counts.comment;
             uint32_t blank = (files_v + i)->counts.blank;
+            uint32_t complexity = (files_v + i)->counts.complexity;
 
             uint32_t total = code + comment + blank;
 
@@ -549,10 +582,14 @@ static void loc_print_html(const FileResult* files_v, int n_files,
              "<td>%s</td>"
              "<td>%" PRIu32 "</td>"
              "<td>%" PRIu32 "</td>"
-             "<td>%" PRIu32 "</td>"
-             "<td>%" PRIu32 "</td>"
-             "</tr>\n",
-             esc, code, comment, blank, total);
+             "<td>%" PRIu32 "</td>",
+             esc, code, comment, blank);
+            if (params.show_complexity) {
+                printf("<td>%" PRIu32 "</td>", complexity);
+            }
+            printf("<td>%" PRIu32 "</td>"
+                   "</tr>\n",
+             total);
         }
 
         printf("</tbody>\n</table>\n");
@@ -574,11 +611,11 @@ static void loc_print_sql(const FileResult* files_v, int n_files,
 {
 #define MAX_SUMS_SQL 1024
     LocLangSum sums[MAX_SUMS_SQL];
-    uint64_t t_files = 0, t_code = 0, t_comm = 0, t_blank = 0;
+    uint64_t t_files = 0, t_code = 0, t_comm = 0, t_blank = 0, t_complexity = 0;
 
     int n_sums = loc__build_sums(files_v,
      (LocSumParams){n_files, n_langs, MAX_SUMS_SQL, params.sort_order}, sums,
-     &t_files, &t_code, &t_comm, &t_blank);
+     &t_files, &t_code, &t_comm, &t_blank, &t_complexity);
 
     uint64_t grand_total = t_code + t_comm + t_blank;
 
@@ -597,7 +634,11 @@ static void loc_print_sql(const FileResult* files_v, int n_files,
      "    files    INTEGER NOT NULL,\n"
      "    code     INTEGER NOT NULL,\n"
      "    comment  INTEGER NOT NULL,\n"
-     "    blank    INTEGER NOT NULL,\n"
+     "    blank    INTEGER NOT NULL,\n");
+    if (params.show_complexity) {
+        printf("    complexity INTEGER NOT NULL,\n");
+    }
+    printf(
      "    total    INTEGER NOT NULL,\n"
      "    pct      REAL    NOT NULL,\n"
      "    PRIMARY KEY (run_id, language)\n"
@@ -612,10 +653,13 @@ static void loc_print_sql(const FileResult* files_v, int n_files,
          "    language TEXT,\n"
          "    code     INTEGER NOT NULL,\n"
          "    comment  INTEGER NOT NULL,\n"
-         "    blank    INTEGER NOT NULL,\n"
-         "    total    INTEGER NOT NULL,\n"
-         "    PRIMARY KEY (run_id, path)\n"
-         ");\n\n");
+         "    blank    INTEGER NOT NULL,\n");
+        if (params.show_complexity) {
+            printf("    complexity INTEGER NOT NULL,\n");
+        }
+        printf("    total    INTEGER NOT NULL,\n"
+               "    PRIMARY KEY (run_id, path)\n"
+               ");\n\n");
     }
 
     /* ── Language rows ── */
@@ -630,15 +674,29 @@ static void loc_print_sql(const FileResult* files_v, int n_files,
         double pct =
          (grand_total > 0) ? 100.0 * (double)total / (double)grand_total : 0.0;
 
-        printf(
-         "INSERT INTO loc_languages"
-         " (run_id, language, files, code, comment, blank, total, pct)"
-         " VALUES ('%s', '%s', %d, %" PRIu32 ", %" PRIu32 ", %" PRIu32
-         ", %" PRIu64 ", "
-         "%.4f);"
-         "\n",
-         ts, esc, sums[i].files, sums[i].counts.code, sums[i].counts.comment,
-         sums[i].counts.blank, total, pct);
+        if (params.show_complexity) {
+            printf(
+             "INSERT INTO loc_languages"
+             " (run_id, language, files, code, comment, blank, complexity, "
+             "total, pct)"
+             " VALUES ('%s', '%s', %d, %" PRIu32 ", %" PRIu32 ", %" PRIu32
+             ", %" PRIu32 ", %" PRIu64 ", "
+             "%.4f);"
+             "\n",
+             ts, esc, sums[i].files, sums[i].counts.code,
+             sums[i].counts.comment, sums[i].counts.blank,
+             sums[i].counts.complexity, total, pct);
+        } else {
+            printf(
+             "INSERT INTO loc_languages"
+             " (run_id, language, files, code, comment, blank, total, pct)"
+             " VALUES ('%s', '%s', %d, %" PRIu32 ", %" PRIu32 ", %" PRIu32
+             ", %" PRIu64 ", "
+             "%.4f);"
+             "\n",
+             ts, esc, sums[i].files, sums[i].counts.code,
+             sums[i].counts.comment, sums[i].counts.blank, total, pct);
+        }
     }
     printf("\n");
 
@@ -660,14 +718,26 @@ static void loc_print_sql(const FileResult* files_v, int n_files,
             uint32_t code = (files_v + i)->counts.code;
             uint32_t comment = (files_v + i)->counts.comment;
             uint32_t blank = (files_v + i)->counts.blank;
+            uint32_t complexity = (files_v + i)->counts.complexity;
             uint32_t total = code + comment + blank;
 
-            printf(
-             "INSERT INTO loc_files"
-             " (run_id, path, ext, language, code, comment, blank, total)"
-             " VALUES ('%s', '%s', '%s', '%s', %" PRIu32 ", %" PRIu32
-             ", %" PRIu32 ", %" PRIu32 ");\n",
-             ts, esc_path, esc_ext, esc_lang, code, comment, blank, total);
+            if (params.show_complexity) {
+                printf(
+                 "INSERT INTO loc_files"
+                 " (run_id, path, ext, language, code, comment, blank, "
+                 "complexity, total)"
+                 " VALUES ('%s', '%s', '%s', '%s', %" PRIu32 ", %" PRIu32
+                 ", %" PRIu32 ", %" PRIu32 ", %" PRIu32 ");\n",
+                 ts, esc_path, esc_ext, esc_lang, code, comment, blank,
+                 complexity, total);
+            } else {
+                printf(
+                 "INSERT INTO loc_files"
+                 " (run_id, path, ext, language, code, comment, blank, total)"
+                 " VALUES ('%s', '%s', '%s', '%s', %" PRIu32 ", %" PRIu32
+                 ", %" PRIu32 ", %" PRIu32 ");\n",
+                 ts, esc_path, esc_ext, esc_lang, code, comment, blank, total);
+            }
         }
         printf("\n");
     }
@@ -699,10 +769,11 @@ static void loc_print_terminal(FileResult* files_v, int n_files,
     uint64_t t_code = 0;
     uint64_t t_comment = 0;
     uint64_t t_blank = 0;
+    uint64_t t_complexity = 0;
 
     int n_sums = loc__build_sums(files_v,
      (LocSumParams){n_files, n_langs, MAX_SUMS_TERM, params.sort_order}, sums,
-     &t_files, &t_code, &t_comment, &t_blank);
+     &t_files, &t_code, &t_comment, &t_blank, &t_complexity);
 
     uint64_t grand_total = t_code + t_comment + t_blank;
 
@@ -713,30 +784,56 @@ static void loc_print_terminal(FileResult* files_v, int n_files,
         printf("\n%sPer-File Results%s\n\n", LOC_TERM_CYAN, LOC_TERM_RESET);
 
         if (params.verbose) {
-            printf("%-45s %-10s %9s %9s %9s %9s\n", "File", "Ext", "Code",
-             "Comment", "Blank", "Total");
+            if (params.show_complexity) {
+                printf("%-45s %-10s %9s %9s %9s %12s %9s\n", "File", "Ext",
+                 "Code", "Comment", "Blank", "Complexity", "Total");
+            } else {
+                printf("%-45s %-10s %9s %9s %9s %9s\n", "File", "Ext", "Code",
+                 "Comment", "Blank", "Total");
+            }
         } else {
-            printf("%-55s %9s %9s %9s %9s\n", "File", "Code", "Comment",
-             "Blank", "Total");
+            if (params.show_complexity) {
+                printf("%-55s %9s %9s %9s %12s %9s\n", "File", "Code",
+                 "Comment", "Blank", "Complexity", "Total");
+            } else {
+                printf("%-55s %9s %9s %9s %9s\n", "File", "Code", "Comment",
+                 "Blank", "Total");
+            }
         }
 
         for (int i = 0; i < n_files; i++) {
             uint64_t code = (uint64_t)(files_v + i)->counts.code;
             uint64_t comment = (uint64_t)(files_v + i)->counts.comment;
             uint64_t blank = (uint64_t)(files_v + i)->counts.blank;
+            uint64_t complexity = (uint64_t)(files_v + i)->counts.complexity;
 
             uint64_t total = code + comment + blank;
 
             if (params.verbose) {
-                printf("%-45s %-10s %9" PRIu64 " %9" PRIu64 " %9" PRIu64
-                       " %9" PRIu64 "\n",
-                 (files_v + i)->path,
-                 (files_v + i)->ext ? (files_v + i)->ext : "", code, comment,
-                 blank, total);
+                if (params.show_complexity) {
+                    printf("%-45s %-10s %9" PRIu64 " %9" PRIu64 " %9" PRIu64
+                           " %12" PRIu64 " %9" PRIu64 "\n",
+                     (files_v + i)->path,
+                     (files_v + i)->ext ? (files_v + i)->ext : "", code,
+                     comment, blank, complexity, total);
+                } else {
+                    printf("%-45s %-10s %9" PRIu64 " %9" PRIu64 " %9" PRIu64
+                           " %9" PRIu64 "\n",
+                     (files_v + i)->path,
+                     (files_v + i)->ext ? (files_v + i)->ext : "", code,
+                     comment, blank, total);
+                }
             } else {
-                printf("%-55s %9" PRIu64 " %9" PRIu64 " %9" PRIu64 " %9" PRIu64
-                       "\n",
-                 (files_v + i)->path, code, comment, blank, total);
+                if (params.show_complexity) {
+                    printf("%-55s %9" PRIu64 " %9" PRIu64 " %9" PRIu64
+                           " %12" PRIu64 " %9" PRIu64 "\n",
+                     (files_v + i)->path, code, comment, blank, complexity,
+                     total);
+                } else {
+                    printf("%-55s %9" PRIu64 " %9" PRIu64 " %9" PRIu64
+                           " %9" PRIu64 "\n",
+                     (files_v + i)->path, code, comment, blank, total);
+                }
             }
         }
 
@@ -757,15 +854,23 @@ static void loc_print_terminal(FileResult* files_v, int n_files,
         }
     }
 
-    printf("%-*s %7s %10s %7s %10s %10s %10s\n", max_lang_width, "Language",
-     "Files", "Code", "Pct", "Comment", "Blank", "Total");
-
-    char separator[512];
-    int sep_len = max_lang_width + 65;
-    for (int i = 0; i < sep_len && i < (512 - 1); i++) {
-        separator[i] = '-';
+    if (params.show_complexity) {
+        printf("%-*s %7s %10s %7s %10s %10s %12s %10s\n", max_lang_width,
+         "Language", "Files", "Code", "Pct", "Comment", "Blank", "Complexity",
+         "Total");
+    } else {
+        printf("%-*s %7s %10s %7s %10s %10s %10s\n", max_lang_width, "Language",
+         "Files", "Code", "Pct", "Comment", "Blank", "Total");
     }
-    separator[511] = '\0';
+
+    char separator[4096];
+    int sep_len = max_lang_width + (params.show_complexity ? 78 : 65);
+    if (sep_len > 4095) {
+        sep_len = 4095;
+    }
+    memset(separator, '-', (size_t)sep_len);
+    /* NOLINTNEXTLINE(clang-analyzer-security.ArrayBound) */
+    separator[sep_len] = '\0';
     printf("%s", separator);
     printf("\n");
 
@@ -782,23 +887,46 @@ static void loc_print_terminal(FileResult* files_v, int n_files,
          (langs_v + sums[i].lang_idx)->name :
          "(unknown)";
 
-        printf(
-         "%-*s %7d "
-         "%s%10" PRIu32 "%s "
-         "%6.1f%% "
-         "%s%10" PRIu32 "%s "
-         "%s%10" PRIu32 "%s "
-         "%10" PRIu64 "\n",
-         max_lang_width, name, sums[i].files, LOC_TERM_GREEN,
-         sums[i].counts.code, LOC_TERM_RESET, pct, LOC_TERM_YELLOW,
-         sums[i].counts.comment, LOC_TERM_RESET, LOC_TERM_GRAY,
-         sums[i].counts.blank, LOC_TERM_RESET, total);
+        if (params.show_complexity) {
+            printf(
+             "%-*s %7d "
+             "%s%10" PRIu32 "%s "
+             "%6.1f%% "
+             "%s%10" PRIu32 " "
+             "%s%10" PRIu32 " "
+             "%s%12" PRIu32 "%s "
+             "%10" PRIu64 "\n",
+             max_lang_width, name, sums[i].files, LOC_TERM_GREEN,
+             sums[i].counts.code, LOC_TERM_RESET, pct, LOC_TERM_YELLOW,
+             sums[i].counts.comment, LOC_TERM_GRAY, sums[i].counts.blank,
+             LOC_TERM_MAGENTA, sums[i].counts.complexity, LOC_TERM_RESET,
+             total);
+        } else {
+            printf(
+             "%-*s %7d "
+             "%s%10" PRIu32 "%s "
+             "%6.1f%% "
+             "%s%10" PRIu32 " "
+             "%s%10" PRIu32 "%s "
+             "%10" PRIu64 "\n",
+             max_lang_width, name, sums[i].files, LOC_TERM_GREEN,
+             sums[i].counts.code, LOC_TERM_RESET, pct, LOC_TERM_YELLOW,
+             sums[i].counts.comment, LOC_TERM_GRAY, sums[i].counts.blank,
+             LOC_TERM_RESET, total);
+        }
     }
     printf("%s\n", separator);
-    printf("%-*s %7" PRIu64 " %10" PRIu64 " %6.1f%% %10" PRIu64 " %10" PRIu64
-           " %10" PRIu64 "\n\n",
-     max_lang_width, "TOTAL", t_files, t_code, 100.0, t_comment, t_blank,
-     grand_total);
+    if (params.show_complexity) {
+        printf("%-*s %7" PRIu64 " %10" PRIu64 " %6.1f%% %10" PRIu64
+               " %10" PRIu64 " %12" PRIu64 " %10" PRIu64 "\n\n",
+         max_lang_width, "TOTAL", t_files, t_code, 100.0, t_comment, t_blank,
+         t_complexity, grand_total);
+    } else {
+        printf("%-*s %7" PRIu64 " %10" PRIu64 " %6.1f%% %10" PRIu64
+               " %10" PRIu64 " %10" PRIu64 "\n\n",
+         max_lang_width, "TOTAL", t_files, t_code, 100.0, t_comment, t_blank,
+         grand_total);
+    }
 
     printf("Breakdown: %s Code %3.1f%% %s|%s Comment %3.1f%% %s|%s Blank "
            "%3.1f%%%s",
@@ -852,6 +980,7 @@ static void loc_print_report(LocOutputFormat fmt, FileResult* files,
 #undef LOC_TERM_GREEN
 #undef LOC_TERM_YELLOW
 #undef LOC_TERM_GRAY
+#undef LOC_TERM_MAGENTA
 #undef LOC_HTML_HEADER
 #undef LOC_HTML_FOOTER
 

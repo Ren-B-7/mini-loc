@@ -22,6 +22,7 @@ static FileResult* g_files = NULL;
 static int g_n_files = 0;
 static int g_capacity = 0;
 static LocConfig g_cfg;
+static CountFn g_count_fn = NULL;
 
 static void process_file_cb(const char* path, size_t size, void* user)
 {
@@ -49,7 +50,7 @@ static void process_file_cb(const char* path, size_t size, void* user)
     fr->path = g_cfg.show_files ? strdup(path) : NULL;
     fr->ext = (g_cfg.show_files && ext) ? strdup(ext) : NULL;
     fr->lang_idx = li;
-    fr->counts = count_file(path, li);
+    fr->counts = g_count_fn(path, li);
 }
 
 static void walk_dir_recursive(const char* path, size_t path_len, bool recurse)
@@ -110,6 +111,8 @@ COLD_ATTR int main(int argc, char** argv)
     loc_config_init(&g_cfg);
     parse_cli(&g_cfg, argc, argv);
 
+    g_count_fn = g_cfg.complexity_check ? count_file_complexity : count_file;
+
     load_languages();
 
     if (g_cfg.lang_load_path) {
@@ -141,7 +144,7 @@ COLD_ATTR int main(int argc, char** argv)
 
     loc_print_report(g_cfg.output_fmt, g_files, g_n_files, g_langs, g_n_langs,
      (LocOutputParams){g_cfg.show_files, g_cfg.verbose, g_cfg.no_bytes,
-         g_cfg.total_bytes, g_cfg.sort_order});
+         g_cfg.complexity_check, g_cfg.total_bytes, g_cfg.sort_order});
     if (g_files) {
         for (int i = 0; i < g_n_files; i++) {
             free(g_files[i].path);
