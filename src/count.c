@@ -359,8 +359,8 @@ Counts count_file(const char* path, int lang_idx)
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
- * Complexity Counting Path Duplicate of count_file BUT has a branch for
- * complexity in the SCAN_NORMAL sitch statement
+ * Complexity Counting Path Duplicate of count_file BUT has a different branch
+ * setup for complexity counting. COMPLEXITY SKIPS COMMENTS ENTIRELY
  * ────────────────────────────────────────────────────────────────────────── */
 
 Counts count_file_complexity(const char* path, int lang_idx)
