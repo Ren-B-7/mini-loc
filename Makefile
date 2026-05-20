@@ -131,7 +131,7 @@ LD_LIBS = $(CJSON_LIB) -lcjson
         install-single default check-binaries check-tools
 
 default: directories single multi
-all: check build-json directories single multi
+all: check-tools build-json-force format lint directories single multi
 check: check-tools format lint
 
 # ---------------------------------------------------------------------------
@@ -156,27 +156,7 @@ check-tools:
 # mkdir -p works in MinGW bash on Windows, macOS, and Linux.
 # ---------------------------------------------------------------------------
 directories:
-	@mkdir -p $(BIN_DIR) $(BUILD_DIR)
-
-# ---------------------------------------------------------------------------
-# Compilation Rules
-# ---------------------------------------------------------------------------
-$(BUILD_DIR)/%.o: src/%.c
-	@echo "Compiling $< (Hardened: $(HARDENED), Platform: $(PLATFORM))..."
-	$(CC) $(ALL_CFLAGS) -c $< -o $@
-
-$(BUILD_DIR)/%.o: src/include/%.c
-	@echo "Compiling $< (Hardened: $(HARDENED), Platform: $(PLATFORM))..."
-	$(CC) $(ALL_CFLAGS) -c $< -o $@
-
-# ---------------------------------------------------------------------------
-# Linking Rules
-# ---------------------------------------------------------------------------
-single: $(OBJ_SINGLE) $(OBJS_COMMON)
-	$(CC) $(ALL_CFLAGS) $(LD_FLAGS) -o $(EXECUTABLE_SINGLE) $^ $(LD_LIBS)
-
-multi: $(OBJ_MULTI) $(OBJS_COMMON)
-	$(CC) $(ALL_CFLAGS) $(LD_FLAGS) -o $(EXECUTABLE_MULTI) $^ -pthread $(LD_LIBS)
+	mkdir -p $(BIN_DIR) $(BUILD_DIR)
 
 # ---------------------------------------------------------------------------
 # Code Generation
@@ -184,13 +164,37 @@ multi: $(OBJ_MULTI) $(OBJS_COMMON)
 build-json: src/include/languages_data.h src/languages_data.c
 
 build-json-force: assets/languages.json assets/convert_langs.py
-	@$(PYTHON) ./assets/convert_langs.py
+	$(PYTHON) assets/convert_langs.py
 
 src/include/languages_data.h: assets/languages.json assets/convert_langs.py
-	@$(PYTHON) ./assets/convert_langs.py
+	$(PYTHON) assets/convert_langs.py
 
 src/languages_data.c: assets/languages.json assets/convert_langs.py
-	@$(PYTHON) ./assets/convert_langs.py
+	$(PYTHON) assets/convert_langs.py
+
+# ---------------------------------------------------------------------------
+# Compilation Rules
+# All object files depend on the generated header so that 'make -j8' will
+# never start compiling before the Python code-generation step finishes.
+# ---------------------------------------------------------------------------
+GENERATED_HDR = src/include/languages_data.h
+
+$(BUILD_DIR)/%.o: src/%.c $(GENERATED_HDR)
+	@echo "Compiling $< (Hardened: $(HARDENED), Platform: $(PLATFORM))..."
+	$(CC) $(ALL_CFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/%.o: src/include/%.c $(GENERATED_HDR)
+	@echo "Compiling $< (Hardened: $(HARDENED), Platform: $(PLATFORM))..."
+	$(CC) $(ALL_CFLAGS) -c $< -o $@
+
+# ---------------------------------------------------------------------------
+# Linking Rules
+# ---------------------------------------------------------------------------
+single: build-json $(OBJ_SINGLE) $(OBJS_COMMON)
+	$(CC) $(ALL_CFLAGS) $(LD_FLAGS) -o $(EXECUTABLE_SINGLE) $(OBJ_SINGLE) $(OBJS_COMMON) $(LD_LIBS)
+
+multi: build-json $(OBJ_MULTI) $(OBJS_COMMON)
+	$(CC) $(ALL_CFLAGS) $(LD_FLAGS) -o $(EXECUTABLE_MULTI) $(OBJ_MULTI) $(OBJS_COMMON) -pthread $(LD_LIBS)
 
 # ---------------------------------------------------------------------------
 # PGO Targets
@@ -221,7 +225,7 @@ optimized: clean directories
 # ---------------------------------------------------------------------------
 clean:
 	@echo "Cleaning build artifacts..."
-	@rm -rf $(BUILD_DIR) $(BIN_DIR)
+	rm -rf $(BUILD_DIR) $(BIN_DIR)
 
 # ---------------------------------------------------------------------------
 # Benchmark
@@ -235,7 +239,7 @@ ifndef COUNT
 	$(error COUNT is required. Usage: make bench NAME=multi COUNT=5)
 endif
 	@echo "Running benchmark on ./bin/loc-$(NAME)$(EXE_SUFFIX)..."
-	@$(PYTHON) assets/bench.py ./bin/loc-$(NAME)$(EXE_SUFFIX) $(COUNT)
+	$(PYTHON) assets/bench.py ./bin/loc-$(NAME)$(EXE_SUFFIX) $(COUNT)
 
 # ---------------------------------------------------------------------------
 # Formatting and Linting
@@ -245,38 +249,38 @@ format-ci: format-c-ci format-makefile-ci format-python-ci
 
 format-c:
 	@echo "Formatting C source files"
-	@clang-format -style=file:./.clang-format -i $(SRCS_ALL) $(HDRS) $(JSON_ASSETS)
+	clang-format -style=file:./.clang-format -i $(SRCS_ALL) $(HDRS) $(JSON_ASSETS)
 
 format-c-ci:
 	@echo "Checking C source file formats"
-	@clang-format --dry-run -style=file:./.clang-format -Werror $(SRCS_ALL) $(HDRS) $(JSON_ASSETS)
+	clang-format --dry-run -style=file:./.clang-format -Werror $(SRCS_ALL) $(HDRS) $(JSON_ASSETS)
 
 format-makefile:
 	@echo "Formatting Makefile"
-	@mbake format --config ./.bake.toml Makefile
+	mbake format --config ./.bake.toml Makefile
 
 format-makefile-ci:
 	@echo "Checking Makefile format"
-	@mbake format --config ./.bake.toml --check Makefile
+	mbake format --config ./.bake.toml --check Makefile
 
 format-python:
 	@echo "Formatting Python files"
-	@black -q ./assets/**.py
+	black -q ./assets/**.py
 
 format-python-ci:
 	@echo "Checking Python Format"
-	@black --check ./assets/**.py
+	black --check ./assets/**.py
 
 lint: lint-c lint-makefile
 
 lint-c:
 	@echo "Running clang-tidy analysis"
-	@clang-tidy -checks=-*,bugprone-*,clang-analyzer-*,performance-* \
+	clang-tidy -checks=-*,bugprone-*,clang-analyzer-*,performance-* \
 	$(SRCS_ALL) -- $(CFLAGS)
 
 lint-makefile:
 	@echo "Running Makefile analysis"
-	@mbake validate --config ./.bake.toml Makefile
+	mbake validate --config ./.bake.toml Makefile
 
 # ---------------------------------------------------------------------------
 # Installation
@@ -305,15 +309,15 @@ install: check-binaries
 	fi
 
 install-multi: check-binaries
-	@mkdir -p $(INSTALL_DIR)
-	@install -m 755 $(EXECUTABLE_MULTI) $(INSTALL_DIR)/$(TARGET_NAME)$(EXE_SUFFIX)
+	mkdir -p $(INSTALL_DIR)
+	install -m 755 $(EXECUTABLE_MULTI) $(INSTALL_DIR)/$(TARGET_NAME)$(EXE_SUFFIX)
 	@echo "Installed $(TARGET_NAME) (multi) to $(INSTALL_DIR)/$(TARGET_NAME)$(EXE_SUFFIX)"
 
 install-single: check-binaries
-	@mkdir -p $(INSTALL_DIR)
-	@install -m 755 $(EXECUTABLE_SINGLE) $(INSTALL_DIR)/$(TARGET_NAME)$(EXE_SUFFIX)
+	mkdir -p $(INSTALL_DIR)
+	install -m 755 $(EXECUTABLE_SINGLE) $(INSTALL_DIR)/$(TARGET_NAME)$(EXE_SUFFIX)
 	@echo "Installed $(TARGET_NAME) (single) to $(INSTALL_DIR)/$(TARGET_NAME)$(EXE_SUFFIX)"
 
 uninstall:
-	@rm -f $(INSTALL_DIR)/$(TARGET_NAME)$(EXE_SUFFIX)
+	rm -f $(INSTALL_DIR)/$(TARGET_NAME)$(EXE_SUFFIX)
 	@echo "Uninstalled $(TARGET_NAME) from $(INSTALL_DIR)"
