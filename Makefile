@@ -34,6 +34,7 @@ EXECUTABLE_MULTI = $(BIN_DIR)/$(TARGET_NAME)-multi$(EXE_SUFFIX)
 HARDENED ?= 0
 
 # Source and Header files
+JSON_ASSETS = assets/languages.json
 SRCS_SHARED = src/include/set.c src/fs.c src/count.c src/cli.c src/languages.c src/languages_data.c
 SRCS_SINGLE = src/mini-loc-single.c
 SRCS_MULTI = src/mini-loc-multi.c src/threading.c
@@ -244,11 +245,11 @@ format-ci: format-c-ci format-makefile-ci format-python-ci
 
 format-c:
 	@echo "Formatting C source files"
-	@clang-format -style=file:./.clang-format -i $(SRCS_ALL) $(HDRS)
+	@clang-format -style=file:./.clang-format -i $(SRCS_ALL) $(HDRS) $(JSON_ASSETS)
 
 format-c-ci:
 	@echo "Checking C source file formats"
-	@clang-format --dry-run -style=file:./.clang-format -Werror $(SRCS_ALL) $(HDRS)
+	@clang-format --dry-run -style=file:./.clang-format -Werror $(SRCS_ALL) $(HDRS) $(JSON_ASSETS)
 
 format-makefile:
 	@echo "Formatting Makefile"
