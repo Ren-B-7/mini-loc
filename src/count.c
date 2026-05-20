@@ -360,7 +360,7 @@ Counts count_file(const char* path, int lang_idx)
 
 /* ──────────────────────────────────────────────────────────────────────────
  * Complexity Counting Path Duplicate of count_file BUT has a branch for
- * complexity in the
+ * complexity in the SCAN_NORMAL sitch statement
  * ────────────────────────────────────────────────────────────────────────── */
 
 Counts count_file_complexity(const char* path, int lang_idx)
@@ -431,30 +431,7 @@ Counts count_file_complexity(const char* path, int lang_idx)
 
             if (__builtin_expect((ent & 0x00FFFFFFu) == 0x00FFFFFFu, 1)) {
                 s.line_has_code = true;
-
-                /* Complexity check optimization: bit-vector lookup */
-                if (lang_idx >= 0 && lang_idx < MAX_LANGS) {
-                    /* NOLINTNEXTLINE(clang-analyzer-security.ArrayBound) */
-                    if ((g_complexity_starts[lang_idx][ch >> 5] >>
-                         (ch & 0x1F)) &
-                     1) {
-                        for (int ci = 0; ci < lang->n_complexity; ci++) {
-                            ComplexityRule* cr = &lang->complexity[ci];
-                            if ((unsigned char)cr->token[0] == ch &&
-                             match_token(p, end, cr->token, cr->len)) {
-                                const char* after = p + cr->len;
-                                if (after >= end ||
-                                 is_whitespace((unsigned char)*after) ||
-                                 *after == '(' || *after == '{' ||
-                                 *after == ';' || *after == '\n') {
-                                    c.complexity++;
-                                }
-                                break;
-                            }
-                        }
-                    }
-                }
-                break;
+                goto check_complexity;
             }
 
             if (e->quote_idx != 0xFF) {
@@ -494,6 +471,41 @@ Counts count_file_complexity(const char* path, int lang_idx)
             }
 
             s.line_has_code = true;
+
+        check_complexity:
+            /* NOLINTNEXTLINE(clang-analyzer-security.ArrayBound) */
+            if ((g_complexity_starts[lang_idx][ch >> 5] >> (ch & 0x1F)) & 1) {
+                for (int ci = 0; ci < lang->n_complexity; ci++) {
+                    ComplexityRule* cr = &lang->complexity[ci];
+                    if ((unsigned char)cr->token[0] != ch) {
+                        continue;
+                    }
+                    if (!match_token(p, end, cr->token, cr->len)) {
+                        continue;
+                    }
+                    bool prev_ok = (p == buf) ||
+                     !((unsigned char)*(p - 1) == '_' ||
+                      ((unsigned char)*(p - 1) >= 'a' &&
+                       (unsigned char)*(p - 1) <= 'z') ||
+                      ((unsigned char)*(p - 1) >= 'A' &&
+                       (unsigned char)*(p - 1) <= 'Z') ||
+                      ((unsigned char)*(p - 1) >= '0' &&
+                       (unsigned char)*(p - 1) <= '9'));
+                    const char* after = p + cr->len;
+                    bool next_ok = (after >= end) ||
+                     !((unsigned char)*after == '_' ||
+                      ((unsigned char)*after >= 'a' &&
+                       (unsigned char)*after <= 'z') ||
+                      ((unsigned char)*after >= 'A' &&
+                       (unsigned char)*after <= 'Z') ||
+                      ((unsigned char)*after >= '0' &&
+                       (unsigned char)*after <= '9'));
+                    if (prev_ok && next_ok) {
+                        c.complexity++;
+                    }
+                    break;
+                }
+            }
             break;
         }
 
