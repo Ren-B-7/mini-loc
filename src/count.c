@@ -473,7 +473,6 @@ Counts count_file_complexity(const char* path, int lang_idx)
             s.line_has_code = true;
 
         check_complexity:
-            /* NOLINTNEXTLINE(clang-analyzer-security.ArrayBound) */
             if ((g_complexity_starts[lang_idx][ch >> 5] >> (ch & 0x1F)) & 1) {
                 for (int ci = 0; ci < lang->n_complexity; ci++) {
                     ComplexityRule* cr = &lang->complexity[ci];
@@ -502,6 +501,7 @@ Counts count_file_complexity(const char* path, int lang_idx)
                        (unsigned char)*after <= '9'));
                     if (prev_ok && next_ok) {
                         c.complexity++;
+                        p += cr->len - 1;
                     }
                     break;
                 }
