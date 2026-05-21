@@ -1,7 +1,6 @@
 #include "include/languages.h"
 
 #include <cjson/cJSON.h>
-#include <ctype.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>

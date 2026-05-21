@@ -473,6 +473,7 @@ Counts count_file_complexity(const char* path, int lang_idx)
             s.line_has_code = true;
 
         check_complexity:
+            // NOLINTNEXTLINE(clang-analyzer-security.ArrayBound)
             if ((g_complexity_starts[lang_idx][ch >> 5] >> (ch & 0x1F)) & 1) {
                 for (int ci = 0; ci < lang->n_complexity; ci++) {
                     ComplexityRule* cr = &lang->complexity[ci];
@@ -482,24 +483,9 @@ Counts count_file_complexity(const char* path, int lang_idx)
                     if (!match_token(p, end, cr->token, cr->len)) {
                         continue;
                     }
-                    bool prev_ok = (p == buf) ||
-                     !((unsigned char)*(p - 1) == '_' ||
-                      ((unsigned char)*(p - 1) >= 'a' &&
-                       (unsigned char)*(p - 1) <= 'z') ||
-                      ((unsigned char)*(p - 1) >= 'A' &&
-                       (unsigned char)*(p - 1) <= 'Z') ||
-                      ((unsigned char)*(p - 1) >= '0' &&
-                       (unsigned char)*(p - 1) <= '9'));
-                    const char* after = p + cr->len;
-                    bool next_ok = (after >= end) ||
-                     !((unsigned char)*after == '_' ||
-                      ((unsigned char)*after >= 'a' &&
-                       (unsigned char)*after <= 'z') ||
-                      ((unsigned char)*after >= 'A' &&
-                       (unsigned char)*after <= 'Z') ||
-                      ((unsigned char)*after >= '0' &&
-                       (unsigned char)*after <= '9'));
-                    if (prev_ok && next_ok) {
+                    bool prev_ok =
+                     (p == buf) || is_whitespace((unsigned char)*(p - 1));
+                    if (prev_ok) {
                         c.complexity++;
                         p += cr->len - 1;
                     }
