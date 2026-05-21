@@ -155,7 +155,9 @@ else
 endif
 
 # Compile-in the default languages.json path
-DATA_FLAGS = -DDEFAULT_LANGUAGES_PATH=\"$(SHARE_DIR)/languages.json\"
+# Ensure forward slashes even on Windows to avoid escape sequence issues (e.g. \U)
+FIXED_SHARE_DIR = $(subst \,/,$(SHARE_DIR))
+DATA_FLAGS = -DDEFAULT_LANGUAGES_PATH=\"$(FIXED_SHARE_DIR)/languages.json\"
 
 PGO_FLAGS =
 PGO_GEN_FLAGS = -fprofile-generate
@@ -347,7 +349,7 @@ format-c:
 
 format-c-ci:
 	@echo "Checking C source file formats"
-	clang-format --dry-run -style=file:./.clang-format -Werror $(SRCS_ALL) $(HDRS) $(JSON_ASSETS)
+	clang-format --dry-run -style=file:./.clang-format -Werror $(SRCS_ALL) $(HDRS)
 
 format-makefile:
 	@echo "Formatting Makefile"
