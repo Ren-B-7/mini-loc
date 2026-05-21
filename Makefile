@@ -1,19 +1,18 @@
 # Project Name and Directories
 TARGET_NAME = loc
-BUILD_DIR = build
+# Each profile gets its own build directory to allow them to coexist
+BUILD_DIR = build/$(PROFILE)
 BIN_DIR = bin
 PROFILE_DIR = profiles
 
 # --- OS / Platform Detection ---
-# On Windows this is always set by the environment (works in MinGW/MSYS2 too).
-# uname -s is available inside MinGW, so we use it to distinguish macOS/Linux.
 ifeq ($(OS),Windows_NT)
     PLATFORM   := windows
     EXE_SUFFIX := .exe
-    # MinGW ships python3; fall back to plain python if not found
     PYTHON     := $(shell command -v python3 2>/dev/null || command -v python 2>/dev/null || echo python3)
-    # Default install location under the user profile (forward-slashes work in MinGW)
     INSTALL_DIR ?= $(USERPROFILE)/.local/bin
+    # For Windows, we don't have a standard share dir, but we can use the install dir
+    SHARE_DIR ?= $(INSTALL_DIR)/share/$(TARGET_NAME)
 else
     UNAME_S := $(shell uname -s 2>/dev/null || echo unknown)
     ifeq ($(UNAME_S),Darwin)
@@ -24,18 +23,28 @@ else
     EXE_SUFFIX :=
     PYTHON     := $(shell command -v python3 2>/dev/null || command -v python 2>/dev/null || echo python3)
     INSTALL_DIR ?= $(HOME)/.local/bin
+    SHARE_DIR ?= $(HOME)/.local/share/$(TARGET_NAME)
 endif
 
-EXECUTABLE_SINGLE = $(BIN_DIR)/$(TARGET_NAME)-single$(EXE_SUFFIX)
-EXECUTABLE_MULTI = $(BIN_DIR)/$(TARGET_NAME)-multi$(EXE_SUFFIX)
+# --- Build Profile Selection ---
+# Usage: make PROFILE=release
+# Profiles: dev, release, fast, tiny, minimal
+PROFILE ?= dev
+
+# --- Target Paths ---
+# Executables are named based on their profile
+EXECUTABLE_SINGLE = $(BIN_DIR)/$(TARGET_NAME)-single-$(PROFILE)$(EXE_SUFFIX)
+EXECUTABLE_MULTI = $(BIN_DIR)/$(TARGET_NAME)-multi-$(PROFILE)$(EXE_SUFFIX)
 
 # --- Hardening Toggle ---
-# Allows 'make HARDENED=1' for a hardened build. Defaults to 0 (Disabled).
 HARDENED ?= 0
 
 # Source and Header files
 JSON_ASSETS = assets/languages.json
-SRCS_SHARED = src/include/set.c src/fs.c src/count.c src/cli.c src/languages.c src/languages_data.c
+SRCS_SHARED = src/include/set.c src/fs.c src/count.c src/cli.c src/languages.c
+ifneq ($(PROFILE),minimal)
+    SRCS_SHARED += src/languages_data.c
+endif
 SRCS_SINGLE = src/mini-loc-single.c
 SRCS_MULTI = src/mini-loc-multi.c src/threading.c
 SRCS_ALL = $(SRCS_SINGLE) $(SRCS_MULTI) $(SRCS_SHARED)
@@ -44,10 +53,12 @@ HDRS = src/include/cli.h src/include/count.h src/include/fs.h \
               src/include/minicli.h src/include/output.h src/include/set.h \
               src/include/threading.h src/include/types.h
 
-# Object files
+# Object files (placed in profile-specific build dir)
 OBJS_COMMON = $(BUILD_DIR)/set.o $(BUILD_DIR)/cli.o $(BUILD_DIR)/count.o \
-              $(BUILD_DIR)/fs.o $(BUILD_DIR)/languages.o $(BUILD_DIR)/threading.o \
-              $(BUILD_DIR)/languages_data.o
+              $(BUILD_DIR)/fs.o $(BUILD_DIR)/languages.o $(BUILD_DIR)/threading.o
+ifneq ($(PROFILE),minimal)
+    OBJS_COMMON += $(BUILD_DIR)/languages_data.o
+endif
 OBJ_SINGLE = $(BUILD_DIR)/mini-loc-single.o
 OBJ_MULTI = $(BUILD_DIR)/mini-loc-multi.o
 
@@ -62,15 +73,14 @@ else
     DARWIN_FLAGS =
 endif
 
-# MinGW/Windows: POSIX source macros can cause warnings with the MinGW headers;
-# they are not needed since MinGW provides its own POSIX-compatible layer.
+# MinGW/Windows: POSIX source macros handling
 ifeq ($(PLATFORM),windows)
     POSIX_FLAGS =
 else
     POSIX_FLAGS = -D_POSIX_C_SOURCE=200809L -D_XOPEN_SOURCE=700 -D_DEFAULT_SOURCE
 endif
 
-# cJSON detection — covers Homebrew (Apple Silicon & Intel), system, and local installs
+# cJSON detection
 CJSON_INC = -I/usr/include/cjson -I/usr/local/include -I/usr/local/include/cjson \
             -I/opt/homebrew/include -I/opt/homebrew/include/cjson
 CJSON_LIB = -L/usr/local/lib -L/opt/homebrew/lib
@@ -80,7 +90,7 @@ CFLAGS = -std=c99 $(POSIX_FLAGS) -pedantic -pedantic-errors \
          -Wall -Wextra -Wformat=2 -Wformat-security -Wnull-dereference \
          -Isrc -Isrc/include $(CJSON_INC) $(DARWIN_FLAGS)
 
-# GCC-specific warnings (MinGW ships GCC, so these will apply on Windows too)
+# GCC-specific warnings
 ifeq ($(IS_GCC),1)
     GCC_FLAGS = -Wstack-protector -Wtrampolines -Walloca -Wvla \
                 -Warray-bounds=2 -Wimplicit-fallthrough=3 -Wshift-overflow=2 \
@@ -93,8 +103,7 @@ ifeq ($(IS_GCC),1)
     CFLAGS += $(GCC_FLAGS)
 endif
 
-# Hardening flags — GNU ld linker options; not available on macOS (Apple ld)
-# or MinGW (which uses a PE linker). Applied on Linux only.
+# Hardening flags (Linux only)
 ifeq ($(PLATFORM),linux)
     HARDENING_C = -D_FORTIFY_SOURCE=2 -fstack-protector-strong -fPIE \
                   -fstack-clash-protection -fcf-protection
@@ -113,13 +122,46 @@ else
     SELECTED_HARDENING_L =
 endif
 
-# Optimization and PGO
-OPTFLAGS = -O3 -march=native -flto
+# --- Optimization Profile Selection ---
+# PROFILE=dev (default): -O3 optimized for build machine, keeps symbols
+# PROFILE=release: -Os optimized for size, strips binary, portable (x86-64)
+# PROFILE=fast: -O3 with native optimizations, and stripped down maximum speed
+# PROFILE=tiny: -Os with minimal flags, strips binary, portable
+# PROFILE=minimal: -Os, strips binary, excludes built-in data
+
+MINIMAL_FLAGS =
+ifeq ($(PROFILE),release)
+    OPTFLAGS = -Os -march=x86-64 -flto
+    STRIP_BINARY = 1
+    PORTABLE = 1
+else ifeq ($(PROFILE),fast)
+    OPTFLAGS = -O3 -march=native -flto
+    STRIP_BINARY = 1
+    PORTABLE = 0
+else ifeq ($(PROFILE),tiny)
+    OPTFLAGS = -Os -flto
+    STRIP_BINARY = 1
+    PORTABLE = 1
+else ifeq ($(PROFILE),minimal)
+    OPTFLAGS = -Os -march=x86-64 -flto
+    STRIP_BINARY = 1
+    PORTABLE = 1
+    MINIMAL_FLAGS = -DMINIMAL_BUILD
+else
+    # dev (default)
+    OPTFLAGS = -O3 -march=native -flto
+    STRIP_BINARY = 0
+    PORTABLE = 0
+endif
+
+# Compile-in the default languages.json path
+DATA_FLAGS = -DDEFAULT_LANGUAGES_PATH=\"$(SHARE_DIR)/languages.json\"
+
 PGO_FLAGS =
 PGO_GEN_FLAGS = -fprofile-generate
 PGO_USE_FLAGS = -fprofile-use
 
-ALL_CFLAGS = $(CFLAGS) $(SELECTED_HARDENING_C) $(OPTFLAGS) $(PGO_FLAGS) -pthread
+ALL_CFLAGS = $(CFLAGS) $(SELECTED_HARDENING_C) $(OPTFLAGS) $(PGO_FLAGS) $(MINIMAL_FLAGS) $(DATA_FLAGS) -pthread
 LD_FLAGS = $(SELECTED_HARDENING_L) $(PGO_FLAGS)
 LD_LIBS = $(CJSON_LIB) -lcjson
 
@@ -127,17 +169,26 @@ LD_LIBS = $(CJSON_LIB) -lcjson
 # Phony Targets
 # ---------------------------------------------------------------------------
 .PHONY: all clean format format-c format-python format-makefile format-ci lint lint-c lint-makefile check directories install uninstall \
-        build-json build-json-force single multi pgo-gen optimized install-multi bench \
-        install-single default check-binaries check-tools
+        build-json build-json-force single multi pgo-gen optimized move-opt install-multi bench \
+        install-single default check-binaries check-tools size-report size-comparison \
+        install-data uninstall-data compile-all
 
 default: directories single multi
 all: check-tools build-json-force format lint directories single multi
 check: check-tools format lint
 
+# Compile all available profiles without cleaning them
+compile-all:
+	@echo "Compiling all profiles..."
+	@$(MAKE) PROFILE=dev directories single multi
+	@$(MAKE) PROFILE=release directories single multi
+	@$(MAKE) PROFILE=fast directories single multi
+	@$(MAKE) PROFILE=tiny directories single multi
+	@$(MAKE) PROFILE=minimal directories single multi
+	@echo "All profiles compiled in $(BIN_DIR)/"
+
 # ---------------------------------------------------------------------------
 # Tool Availability Guards
-# These run before format/lint so missing tools produce a clear error instead
-# of a cryptic "command not found" mid-build.
 # ---------------------------------------------------------------------------
 check-tools:
 	@$(PYTHON) --version > /dev/null 2>&1 || \
@@ -153,7 +204,6 @@ check-tools:
 
 # ---------------------------------------------------------------------------
 # Directory Creation
-# mkdir -p works in MinGW bash on Windows, macOS, and Linux.
 # ---------------------------------------------------------------------------
 directories:
 	mkdir -p $(BIN_DIR) $(BUILD_DIR)
@@ -174,62 +224,106 @@ src/languages_data.c: assets/languages.json assets/convert_langs.py
 
 # ---------------------------------------------------------------------------
 # Compilation Rules
-# All object files depend on the generated header so that 'make -j8' will
-# never start compiling before the Python code-generation step finishes.
 # ---------------------------------------------------------------------------
 GENERATED_HDR = src/include/languages_data.h
 
 $(BUILD_DIR)/%.o: src/%.c $(GENERATED_HDR)
-	@echo "Compiling $< (Hardened: $(HARDENED), Platform: $(PLATFORM))..."
+	@echo "Compiling $< (Profile: $(PROFILE), Platform: $(PLATFORM))..."
 	$(CC) $(ALL_CFLAGS) -c $< -o $@
 
 $(BUILD_DIR)/%.o: src/include/%.c $(GENERATED_HDR)
-	@echo "Compiling $< (Hardened: $(HARDENED), Platform: $(PLATFORM))..."
+	@echo "Compiling $< (Profile: $(PROFILE), Platform: $(PLATFORM))..."
 	$(CC) $(ALL_CFLAGS) -c $< -o $@
 
 # ---------------------------------------------------------------------------
-# Linking Rules
+# Linking Rules (with optional stripping)
 # ---------------------------------------------------------------------------
 single: build-json $(OBJ_SINGLE) $(OBJS_COMMON)
 	$(CC) $(ALL_CFLAGS) $(LD_FLAGS) -o $(EXECUTABLE_SINGLE) $(OBJ_SINGLE) $(OBJS_COMMON) $(LD_LIBS)
+	@if [ "$(STRIP_BINARY)" = "1" ]; then \
+		echo "Stripping $(EXECUTABLE_SINGLE)..."; \
+		strip $(EXECUTABLE_SINGLE); \
+	fi
+	@$(MAKE) size-report-single
 
 multi: build-json $(OBJ_MULTI) $(OBJS_COMMON)
 	$(CC) $(ALL_CFLAGS) $(LD_FLAGS) -o $(EXECUTABLE_MULTI) $(OBJ_MULTI) $(OBJS_COMMON) -pthread $(LD_LIBS)
+	@if [ "$(STRIP_BINARY)" = "1" ]; then \
+		echo "Stripping $(EXECUTABLE_MULTI)..."; \
+		strip $(EXECUTABLE_MULTI); \
+	fi
+	@$(MAKE) size-report-multi
+
+# ---------------------------------------------------------------------------
+# Size Reporting
+# ---------------------------------------------------------------------------
+size-report-single:
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "Binary Size Report: $(EXECUTABLE_SINGLE)"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@ls -lh $(EXECUTABLE_SINGLE) | awk '{print "Total size: " $$5}'
+	@echo "Build profile: $(PROFILE)"
+	@echo "Stripped: $(STRIP_BINARY)"
+	@echo "Portable: $(PORTABLE)"
+
+size-report-multi:
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "Binary Size Report: $(EXECUTABLE_MULTI)"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@ls -lh $(EXECUTABLE_MULTI) | awk '{print "Total size: " $$5}'
+	@echo "Build profile: $(PROFILE)"
+	@echo "Stripped: $(STRIP_BINARY)"
+	@echo "Portable: $(PORTABLE)"
+
+# size-comparison now builds everything and lists them, without moving them out of bin/
+size-comparison: compile-all
+	@echo ""
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "Size Comparison Summary"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@ls -lh $(BIN_DIR)/$(TARGET_NAME)-multi-* | awk '{printf "%-35s %6s\n", $$9, $$5}'
+	@echo ""
+	@echo "Binaries available for testing in $(BIN_DIR)/"
+	@echo ""
+	@echo "To benchmark, run: time ./bin/loc-multi-{profile} -r <path>"
 
 # ---------------------------------------------------------------------------
 # PGO Targets
-# GCC profile flags work under MinGW, but .gcda output paths can be tricky
-# on Windows — documented with a note below.
 # ---------------------------------------------------------------------------
 pgo-gen: build-json format clean directories
-	@echo "Building instrumented binaries..."
-	@mkdir -p $(PROFILE_DIR)
-	$(MAKE) PGO_FLAGS="$(PGO_GEN_FLAGS)" single multi
-	@echo "Run: ./$(EXECUTABLE_MULTI) -r <codebase>"
-	@echo "Then move the generated .gcda files into $(PROFILE_DIR)/ and run 'make optimized'."
-	@echo "Note: on Windows/MinGW .gcda files are written relative to the build directory."
+	@echo "Building instrumented binaries for profile: $(PROFILE)..."
+	@mkdir -p $(PROFILE_DIR)/$(PROFILE)
+	$(MAKE) PGO_FLAGS="$(PGO_GEN_FLAGS)" PROFILE=$(PROFILE) single multi
+	@echo ""
+	@echo "Next steps:"
+	@echo "1. Run the instrumented binary: ./$(EXECUTABLE_MULTI) -r <large_codebase>"
+	@echo "2. The compiler will generate .gcda files in $(BUILD_DIR)/"
+	@echo "3. Move them to the profile data store: $(MAKE) move-opt PROFILE=$(PROFILE) (mv $(BUILD_DIR)/*.gcda $(PROFILE_DIR)/$(PROFILE)/)"
+	@echo "4. Build the final optimized binary: $(MAKE) optimized PROFILE=$(PROFILE) (make optimized PROFILE=$(PROFILE))"
+
+move-opt:
+	mv $(BUILD_DIR)/*.gcda $(PROFILE_DIR)/$(PROFILE)/
 
 optimized: clean directories
-	@echo "Building optimized binaries using profile data..."
-	@if [ -d "$(PROFILE_DIR)" ] && ls $(PROFILE_DIR)/*.gcda > /dev/null 2>&1; then \
-		cp $(PROFILE_DIR)/*.gcda $(BUILD_DIR)/; \
+	@echo "Building optimized binaries for profile: $(PROFILE) using profile data..."
+	@if [ -d "$(PROFILE_DIR)/$(PROFILE)" ] && ls $(PROFILE_DIR)/$(PROFILE)/*.gcda > /dev/null 2>&1; then \
+		cp $(PROFILE_DIR)/$(PROFILE)/*.gcda $(BUILD_DIR)/; \
 	else \
-		echo "ERROR: No .gcda profile data found in $(PROFILE_DIR)/. Run 'make pgo-gen' first."; \
+		echo "ERROR: No .gcda profile data found in $(PROFILE_DIR)/$(PROFILE)/."; \
+		echo "Run 'make pgo-gen PROFILE=$(PROFILE)' and follow the instructions first."; \
 		exit 1; \
 	fi
-	$(MAKE) PGO_FLAGS="$(PGO_USE_FLAGS)" single multi
+	$(MAKE) PGO_FLAGS="$(PGO_USE_FLAGS)" PROFILE=$(PROFILE) single multi
 
 # ---------------------------------------------------------------------------
 # Clean
-# rm -rf works in MinGW bash on all three platforms.
 # ---------------------------------------------------------------------------
 clean:
 	@echo "Cleaning build artifacts..."
-	rm -rf $(BUILD_DIR) $(BIN_DIR)
+	rm -rf build bin
 
 # ---------------------------------------------------------------------------
 # Benchmark
-# Both NAME and COUNT must be supplied: make bench NAME=multi COUNT=5
 # ---------------------------------------------------------------------------
 bench:
 ifndef NAME
@@ -284,40 +378,62 @@ lint-makefile:
 
 # ---------------------------------------------------------------------------
 # Installation
-# install(1) is available in MinGW/MSYS2 (via coreutils), so we use it
-# uniformly. INSTALL_DIR defaults to ~/.local/bin on all three platforms;
-# on Windows that resolves under %USERPROFILE%.
 # ---------------------------------------------------------------------------
-check-binaries:
-	@if [ ! -f "$(EXECUTABLE_SINGLE)" ] || [ ! -f "$(EXECUTABLE_MULTI)" ]; then \
-		echo "ERROR: One or both binaries are missing. Run 'make' first."; \
-		echo "  Expected: $(EXECUTABLE_SINGLE)"; \
-		echo "  Expected: $(EXECUTABLE_MULTI)"; \
+install-data:
+	mkdir -p $(SHARE_DIR)
+	install -m 644 assets/languages.json $(SHARE_DIR)/languages.json
+	@echo "Installed languages.json to $(SHARE_DIR)/languages.json"
+
+uninstall-data:
+	rm -f $(SHARE_DIR)/languages.json
+	@echo "Uninstalled data files from $(SHARE_DIR)"
+
+# Interactive install target that detects available binaries
+install: install-data
+	@binaries=$$(ls $(BIN_DIR)/$(TARGET_NAME)-* 2>/dev/null | xargs -n1 basename); \
+	if [ -z "$$binaries" ]; then \
+		echo "ERROR: No binaries found in $(BIN_DIR)/. Run 'make' or 'make compile-all' first."; \
+		exit 1; \
+	fi; \
+	echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; \
+	echo "Available Binaries to Install:"; \
+	echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; \
+	i=1; \
+	for b in $$binaries; do \
+		echo "$$i. $$b"; \
+		i=$$(($$i + 1)); \
+	done; \
+	echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; \
+	printf "Select a binary to install (1-$$(( $$i - 1 ))): "; \
+	read choice; \
+	selected=$$(echo "$$binaries" | sed -n "$${choice}p"); \
+	if [ -z "$$selected" ]; then \
+		echo "Invalid choice '$$choice'. Installation cancelled."; exit 1; \
+	fi; \
+	mkdir -p $(INSTALL_DIR); \
+	install -m 755 $(BIN_DIR)/$$selected $(INSTALL_DIR)/$(TARGET_NAME)$(EXE_SUFFIX); \
+	echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"; \
+	echo "Installed $$selected as $(INSTALL_DIR)/$(TARGET_NAME)$(EXE_SUFFIX)"; \
+	echo "Installation complete."
+
+install-multi: install-data
+	@if [ ! -f "$(EXECUTABLE_MULTI)" ]; then \
+		echo "ERROR: $(EXECUTABLE_MULTI) not found. Build it first with PROFILE=$(PROFILE)."; \
 		exit 1; \
 	fi
-
-# Interactive prompt — printf + read work in MinGW bash on all platforms.
-install: check-binaries
-	@printf "Install version [1-Multi, 2-Single]: "; \
-	read choice; \
-	if [ "$$choice" = "1" ]; then \
-		$(MAKE) install-multi; \
-	elif [ "$$choice" = "2" ]; then \
-		$(MAKE) install-single; \
-	else \
-		echo "Invalid choice '$$choice'. Please enter 1 or 2."; exit 1; \
-	fi
-
-install-multi: check-binaries
 	mkdir -p $(INSTALL_DIR)
 	install -m 755 $(EXECUTABLE_MULTI) $(INSTALL_DIR)/$(TARGET_NAME)$(EXE_SUFFIX)
-	@echo "Installed $(TARGET_NAME) (multi) to $(INSTALL_DIR)/$(TARGET_NAME)$(EXE_SUFFIX)"
+	@echo "Installed $(TARGET_NAME) (multi-$(PROFILE)) to $(INSTALL_DIR)/$(TARGET_NAME)$(EXE_SUFFIX)"
 
-install-single: check-binaries
+install-single: install-data
+	@if [ ! -f "$(EXECUTABLE_SINGLE)" ]; then \
+		echo "ERROR: $(EXECUTABLE_SINGLE) not found. Build it first with PROFILE=$(PROFILE)."; \
+		exit 1; \
+	fi
 	mkdir -p $(INSTALL_DIR)
 	install -m 755 $(EXECUTABLE_SINGLE) $(INSTALL_DIR)/$(TARGET_NAME)$(EXE_SUFFIX)
-	@echo "Installed $(TARGET_NAME) (single) to $(INSTALL_DIR)/$(TARGET_NAME)$(EXE_SUFFIX)"
+	@echo "Installed $(TARGET_NAME) (single-$(PROFILE)) to $(INSTALL_DIR)/$(TARGET_NAME)$(EXE_SUFFIX)"
 
-uninstall:
+uninstall: uninstall-data
 	rm -f $(INSTALL_DIR)/$(TARGET_NAME)$(EXE_SUFFIX)
 	@echo "Uninstalled $(TARGET_NAME) from $(INSTALL_DIR)"

@@ -6,8 +6,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <unistd.h>
 
+#ifndef MINIMAL_BUILD
 #include "include/languages_data.h"
+#endif
+
 #include "include/types.h"
 
 Language g_langs[MAX_LANGS];
@@ -31,9 +35,72 @@ void load_languages(void)
 {
     g_n_langs = 0;
 
+#ifndef MINIMAL_BUILD
     for (int i = 0; i < g_n_langs_data && i < MAX_LANGS; i++) {
         g_langs[g_n_langs++] = g_langs_data[i];
         populate_complexity_table(g_n_langs - 1);
+    }
+#endif
+}
+
+void load_languages_auto(void)
+{
+    const char* env_path = getenv("LOC_DATA_DIR");
+    char path[PATH_BUF];
+
+    // 1. Try environment variable directory
+    if (env_path) {
+        snprintf(path, sizeof(path), "%s/languages.json", env_path);
+        if (access(path, R_OK) == 0) {
+            load_languages_from_file(path, false);
+            if (g_n_langs > 0) {
+                return;
+            }
+        }
+    }
+
+    // 2. Try current directory
+    if (access("./languages.json", R_OK) == 0) {
+        load_languages_from_file("./languages.json", false);
+        if (g_n_langs > 0) {
+            return;
+        }
+    }
+
+    // 3. Try compiled-in DEFAULT_LANGUAGES_PATH
+#ifdef DEFAULT_LANGUAGES_PATH
+    if (access(DEFAULT_LANGUAGES_PATH, R_OK) == 0) {
+        load_languages_from_file(DEFAULT_LANGUAGES_PATH, false);
+        if (g_n_langs > 0) {
+            return;
+        }
+    }
+#endif
+
+    // 4. Try standard system paths
+    const char* search_paths[] = {"/usr/local/share/loc/languages.json",
+        "/usr/share/loc/languages.json", NULL};
+
+    for (int i = 0; search_paths[i]; i++) {
+        if (access(search_paths[i], R_OK) == 0) {
+            load_languages_from_file(search_paths[i], false);
+            if (g_n_langs > 0) {
+                return;
+            }
+        }
+    }
+
+    // 5. Try ~/.local/share/loc/languages.json
+    const char* home = getenv("HOME");
+    if (home) {
+        snprintf(path, sizeof(path), "%s/.local/share/loc/languages.json",
+         home);
+        if (access(path, R_OK) == 0) {
+            load_languages_from_file(path, false);
+            if (g_n_langs > 0) {
+                return;
+            }
+        }
     }
 }
 

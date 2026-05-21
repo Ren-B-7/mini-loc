@@ -22,6 +22,11 @@ extern uint32_t g_complexity_starts[MAX_LANGS][8];
 void load_languages(void);
 
 /*
+ * Load language definitions automatically from standard paths.
+ */
+void load_languages_auto(void);
+
+/*
  * Load language definitions from an external JSON file.
  *
  * append == false:

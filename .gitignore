@@ -264,4 +264,7 @@ Cargo.lock
 bin/**
 ./bin/**
 /bin/**
+profiles/**
+./profiles/**
+/profiles/**
 

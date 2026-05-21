@@ -37,7 +37,9 @@ static inline long get_nproc_win32(void)
 #include "include/count.h"
 #include "include/fs.h"
 #include "include/languages.h"
+#ifndef MINIMAL_BUILD
 #include "include/languages_data.h"
+#endif
 #include "include/output.h"
 #include "include/threading.h"
 #include "include/types.h"
@@ -112,12 +114,25 @@ COLD_ATTR int main(int argc, char** argv)
     g_count_fn = g_cfg.complexity_check ? count_file_complexity : count_file;
 
     load_languages();
+    if (g_n_langs == 0 && !g_cfg.lang_load_path) {
+        load_languages_auto();
+    }
+
     if (g_cfg.lang_load_path) {
         load_languages_from_file(g_cfg.lang_load_path, false);
     }
     if (g_cfg.lang_append_path) {
         load_languages_from_file(g_cfg.lang_append_path, true);
     }
+
+    if (g_n_langs == 0) {
+        fprintf(stderr, "ERROR: No language definitions found.\n");
+        fprintf(stderr,
+         "Please provide languages.json via --load or "
+         "LOC_DATA_DIR.\n");
+        return 1;
+    }
+
     build_lookup_table();
 
     WorkQueue wq;
