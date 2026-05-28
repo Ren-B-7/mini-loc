@@ -119,7 +119,7 @@ loc -r /path/to/codebase
 Help for the loc program:
 
 ```bash
-❯ loc -h
+❯ loc --help
 mini-loc — A fast lines-of-code counter
 
 Usage: mini-loc [options] [paths...]
@@ -127,6 +127,8 @@ Usage: mini-loc [options] [paths...]
 Options:
   --recurse        -r    Recurse into directories
   --files          -f    Show per-file results
+  --complexity           Perform complexity checks
+  --no-bytes             Do not show bytes processed
   --sort           -s    Sort by: total, code, comment, blank, files
   --output         -o    Output format: terminal, json, html, sql
   --load           -l    Load custom language definitions
@@ -135,8 +137,7 @@ Options:
   --filter               Only process these extensions (comma-sep)
   --verbose              Show more detailed output
   --help           -h    Display this help
-  --completions          Print shell completions (bash/zsh)
-```
+  --completions          Print shell completions (bash/zsh)```
 
 ## TODO!!
 
