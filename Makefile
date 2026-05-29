@@ -322,7 +322,7 @@ optimized: clean directories
 # ---------------------------------------------------------------------------
 clean:
 	@echo "Cleaning build artifacts..."
-	rm -rf build bin
+	rm -rf build_* bin profiles
 
 # ---------------------------------------------------------------------------
 # Benchmark
